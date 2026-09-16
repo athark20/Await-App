@@ -43,6 +43,18 @@ const light = {
   divider: "#E7EEF6",
   overlay: "rgba(11,27,49,0.45)",
   tabInactive: "#8A9BB5",
+
+  // Auth wallpaper is dark in both themes — these stay identical so the hero reads the same.
+  onWallpaper: "#F7F9FC",
+  onWallpaperMuted: "rgba(247,249,252,0.72)",
+  wallpaperScrimTop: "rgba(7,17,31,0.10)",
+  wallpaperScrimBottom: "rgba(7,17,31,0.94)",
+  glass: "rgba(14,27,43,0.74)",
+  glassBorder: "rgba(255,255,255,0.12)",
+  // Google brand button (per Google Identity guidelines)
+  google: "#FFFFFF",
+  onGoogle: "#1F1F1F",
+  googleBorder: "#747775",
 };
 
 const dark: typeof light = {
@@ -84,6 +96,16 @@ const dark: typeof light = {
   divider: "#1A2B40",
   overlay: "rgba(0,0,0,0.6)",
   tabInactive: "#6F84A3",
+
+  onWallpaper: "#F7F9FC",
+  onWallpaperMuted: "rgba(247,249,252,0.72)",
+  wallpaperScrimTop: "rgba(7,17,31,0.10)",
+  wallpaperScrimBottom: "rgba(7,17,31,0.94)",
+  glass: "rgba(14,27,43,0.74)",
+  glassBorder: "rgba(255,255,255,0.12)",
+  google: "#FFFFFF",
+  onGoogle: "#1F1F1F",
+  googleBorder: "#747775",
 };
 
 export type ThemeColors = typeof light;

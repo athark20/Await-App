@@ -21,6 +21,7 @@ import { initializeRevenueCat, SubscriptionProvider } from "@/src/revenuecat";
 import { ShareBridgeProvider, useNativeShareIntent } from "@/src/share-bridge";
 import { registerReminderTask, runReminderTick } from "@/src/background";
 import { AppLockGate } from "@/src/app-lock";
+import { startNetworkMonitor } from "@/src/offline";
 
 LogBox.ignoreAllLogs(true);
 
@@ -39,6 +40,7 @@ function Gate() {
 
   useEffect(() => {
     configureNotifications();
+    startNetworkMonitor();
   }, []);
 
   // Native share target (real builds): ACTION_SEND / ACTION_SEND_MULTIPLE → Share-to-Await
@@ -108,6 +110,7 @@ function Gate() {
           <Stack.Screen name="needs-review" />
           <Stack.Screen name="history" />
           <Stack.Screen name="stats" />
+          <Stack.Screen name="recap" />
           <Stack.Screen name="settings/notifications" />
           <Stack.Screen name="settings/preferences" />
           <Stack.Screen name="settings/privacy" />

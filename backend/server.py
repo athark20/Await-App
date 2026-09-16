@@ -585,6 +585,62 @@ async def stats(user=Depends(get_user)):
             "needsReview": len([d for d in open_ if d["attentionState"] == "NEEDS_REVIEW"]), "categories": cats, "activeLimit": FREE_ACTIVE_LIMIT if user.get("plan", "FREE") == "FREE" else None}
 
 
+@api.get("/recap/weekly")
+async def recap_weekly(user=Depends(get_user)):
+    """Last-7-days recap: what got resolved, what slipped, who owes you the most."""
+    end = now()
+    start = end - timedelta(days=7)
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(5000)]
+
+    def within(v):
+        dt = parse_dt(v)
+        return dt is not None and start <= dt <= end
+
+    def brief(d):
+        return {"id": d["id"], "ownerName": d["ownerName"], "commitment": d["commitment"], "category": d["category"],
+                "expectedAt": d.get("expectedAt"), "completedAt": d.get("completedAt"), "attentionState": d["attentionState"]}
+
+    open_ = [d for d in docs if d["state"] != "DONE"]
+    resolved = sorted([d for d in docs if d["state"] == "DONE" and within(d.get("completedAt"))], key=lambda d: d.get("completedAt") or "", reverse=True)
+    created = [d for d in docs if within(d.get("createdAt"))]
+    pushed_ids = {e["awaitItemId"] for e in await db.events.find(
+        {"user_id": user["user_id"], "type": "EXPECTED_CHANGED", "createdAt": {"$gte": start}}, {"_id": 0, "awaitItemId": 1}).to_list(5000)}
+    followups = await db.events.count_documents({"user_id": user["user_id"], "type": "FOLLOWUP_RECORDED", "createdAt": {"$gte": start}})
+    # Slipped = promised this week but still open, or the promised date got pushed this week
+    slipped = [d for d in open_ if (d.get("expectedAt") and within(d["expectedAt"])) or d["id"] in pushed_ids]
+    slipped.sort(key=lambda d: d.get("expectedAt") or "")
+
+    owes: dict[str, dict] = {}
+    for d in open_:
+        o = owes.setdefault(d["ownerName"], {"ownerName": d["ownerName"], "count": 0, "overdue": 0, "oldestExpectedAt": None, "items": []})
+        o["count"] += 1
+        if d["attentionState"] == "OVERDUE":
+            o["overdue"] += 1
+        exp = d.get("expectedAt")
+        if exp and (o["oldestExpectedAt"] is None or exp < o["oldestExpectedAt"]):
+            o["oldestExpectedAt"] = exp
+        if len(o["items"]) < 3:
+            o["items"].append(d["commitment"])
+    top_owes = sorted(owes.values(), key=lambda o: (-o["overdue"], -o["count"], o["oldestExpectedAt"] or "9999"))[:3]
+
+    overdue_now = len([d for d in open_ if d["attentionState"] == "OVERDUE"])
+    if resolved and not slipped:
+        headline = f"Clean week — {len(resolved)} resolved, nothing slipped."
+    elif resolved:
+        headline = f"{len(resolved)} resolved, {len(slipped)} slipped this week."
+    elif slipped:
+        headline = f"{len(slipped)} {'promise' if len(slipped) == 1 else 'promises'} slipped this week."
+    else:
+        headline = "A quiet week — nothing resolved or slipped."
+    return {
+        "weekStart": iso(start), "weekEnd": iso(end), "headline": headline,
+        "counts": {"resolved": len(resolved), "slipped": len(slipped), "created": len(created), "followups": followups, "open": len(open_), "overdue": overdue_now},
+        "resolved": [brief(d) for d in resolved[:6]],
+        "slipped": [brief(d) for d in slipped[:6]],
+        "owes": top_owes,
+    }
+
+
 @api.post("/reminders/tick")
 async def reminders_tick(user=Depends(get_user)):
     """Reminder engine: returns due reminders and escalates ignored ones to NEEDS_REVIEW."""

@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Sheet } from "@/src/components/Sheet";
 import { Banner, Button } from "@/src/components/ui";
 import { makeStyles } from "@/src/theme";
-import { useOnline } from "@/src/hooks";
+import { useNetwork } from "@/src/offline";
 
 export function FreeLimitSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
@@ -42,12 +42,20 @@ export function useFreeLimit() {
 }
 
 export function OfflineBanner() {
-  const online = useOnline();
+  const { online, pending, syncing } = useNetwork();
   const styles = useStyles();
-  if (online) return null;
+  if (online && pending === 0) return null;
+  const changes = `${pending} ${pending === 1 ? "change" : "changes"}`;
+  const text = !online
+    ? pending > 0
+      ? `You’re offline · ${changes} will sync when you’re back.`
+      : "You’re offline. You can still add and edit Awaits."
+    : syncing
+      ? `Syncing ${changes}…`
+      : `${changes} waiting to sync.`;
   return (
     <View style={styles.wrap}>
-      <Banner icon="cloud-offline-outline" tone="warning" text="You’re offline. Saved items are still available." testID="offline-banner" />
+      <Banner icon={online ? "cloud-upload-outline" : "cloud-offline-outline"} tone={online ? "brand" : "warning"} text={text} testID="offline-banner" />
     </View>
   );
 }

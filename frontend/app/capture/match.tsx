@@ -7,6 +7,8 @@ import { makeStyles, radius, spacing } from "@/src/theme";
 import { Button, IconBox, Pill, ScreenHeader } from "@/src/components/ui";
 import { AwaitCard } from "@/src/components/AwaitCard";
 import { Sheet } from "@/src/components/Sheet";
+import { SnoozeSheet } from "@/src/components/SnoozeSheet";
+import type { AwaitItem } from "@/src/types";
 import { captureStore, itemsToEvidence } from "@/src/capture-store";
 import { api } from "@/src/api";
 import { useInvalidateAwaits } from "@/src/hooks";
@@ -142,7 +144,7 @@ export default function Match() {
         <Sheet visible={evidenceSheet} onClose={() => setEvidenceSheet(false)} title="Shared evidence" subtitle="Exactly what you shared into Await" testID="evidence-sheet">
           <SourceBox text={sourceText} />
         </Sheet>
-        <RemindLaterSheet visible={remindSheet} onClose={() => setRemindSheet(false)} onPick={(d) => { setRemindSheet(false); act("remind_later", d); }} />
+        <RemindLaterSheet item={cand} visible={remindSheet} onClose={() => setRemindSheet(false)} onPick={(d) => { setRemindSheet(false); act("remind_later", d); }} />
       </View>
     );
   }
@@ -200,24 +202,8 @@ function SourceBox({ text }: { text: string }) {
   );
 }
 
-export function RemindLaterSheet({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (days: number) => void }) {
-  return (
-    <Sheet
-      visible={visible}
-      onClose={onClose}
-      icon="alarm-outline"
-      title="Remind Later"
-      subtitle="Choose when to be reminded again."
-      testID="remind-later-sheet"
-      options={[
-        { key: "1", label: "Tomorrow", icon: "sunny-outline" },
-        { key: "3", label: "In 3 days", icon: "calendar-outline" },
-        { key: "7", label: "Next week", icon: "calendar-number-outline" },
-        { key: "14", label: "Custom (2 weeks)", icon: "options-outline" },
-      ]}
-      onSelect={(k) => onPick(parseInt(k, 10))}
-    />
-  );
+export function RemindLaterSheet({ visible, onClose, onPick, item }: { visible: boolean; onClose: () => void; onPick: (days: number) => void; item?: Pick<AwaitItem, "ownerName" | "expectedAt" | "nextCheckAt"> | null }) {
+  return <SnoozeSheet visible={visible} onClose={onClose} item={item} onPick={(p) => onPick(p.days)} />;
 }
 
 const useStyles = makeStyles((c) => ({

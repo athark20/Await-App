@@ -101,3 +101,6 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Iteration 4 (main agent) — 2026-06
+Implemented: (1) Welcome/Login wallpaper backdrop + official Google button (white, colour G) + blue Email CTA; (2) Await Details rebuilt (hero/meta, resolution-signal card w/ confidence ring, quick-action grid, stepper timeline, evidence, notes, ⋮ menu); (3) SnoozeSheet smart options → POST /awaits/{id}/snooze {until, days}; (4) GET /api/recap/weekly + /recap screen + Home Sunday card + Profile row + notif toggle; (5) Offline layer src/offline.ts + api.ts (cache GETs, outbox for POST /awaits, PATCH, /state, /snooze, /reopen; local_* ids; auto-sync on reconnect); (6) Home summary strip, AwaitCard meta row.
+needs_retesting: all of the above. Self-tested: recap endpoint via curl, offline create→sync in browser (context.set_offline), item screen light+dark screenshots.

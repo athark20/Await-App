@@ -65,7 +65,7 @@ export default function NeedsReview() {
           </View>
         ))}
       </ScrollView>
-      <RemindLaterSheet visible={!!remindFor} onClose={() => setRemindFor(null)} onPick={(d) => { const id = remindFor!; setRemindFor(null); act(id, "/snooze", { days: d }, "Reminder scheduled"); }} />
+      <RemindLaterSheet item={items.find((i) => i.id === remindFor)} visible={!!remindFor} onClose={() => setRemindFor(null)} onPick={(d) => { const id = remindFor!; setRemindFor(null); act(id, "/snooze", { days: d }, "Reminder scheduled"); }} />
     </View>
   );
 }

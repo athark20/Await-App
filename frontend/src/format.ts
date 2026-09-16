@@ -1,5 +1,12 @@
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import type { AwaitItem, Category } from "@/src/types";
+
+dayjs.extend(relativeTime);
+
+export function fromNow(iso?: string | null) {
+  return iso ? dayjs(iso).fromNow() : "";
+}
 
 export type PillTone = "error" | "warning" | "success" | "neutral" | "brand" | "purple";
 

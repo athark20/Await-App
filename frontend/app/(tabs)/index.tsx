@@ -11,7 +11,7 @@ import { useAwaits } from "@/src/hooks";
 import { useAuth } from "@/src/auth";
 import { greeting } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
-import { scheduleDailySummary, scheduleReminder } from "@/src/notifications";
+import { scheduleDailySummary, scheduleReminder, scheduleWeeklyRecap } from "@/src/notifications";
 import { api } from "@/src/api";
 import { usePrefs } from "@/src/prefs";
 import type { AwaitItem } from "@/src/types";
@@ -33,7 +33,10 @@ export default function Home() {
   useEffect(() => {
     if (prefs.notifDue) items.forEach((it) => scheduleReminder(it, prefs.quietHours));
     api<{ body: string }>("/summary/today").then((s) => scheduleDailySummary(s.body, prefs.notifDaily, prefs.quietHours)).catch(() => {});
-  }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily]);
+    api<{ headline: string }>("/recap/weekly").then((r) => scheduleWeeklyRecap(r.headline, prefs.notifWeekly)).catch(() => {});
+  }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily, prefs.notifWeekly]);
+
+  const isSunday = dayjs().day() === 0;
 
   const groups = useMemo(() => {
     const today = dayjs().startOf("day");
@@ -105,6 +108,24 @@ export default function Home() {
           />
         ) : (
           <>
+            <View style={styles.strip} testID="home-summary-strip">
+              <Stat icon="alert-circle-outline" label="Overdue" value={groups.overdue.length} color={colors.error} />
+              <Stat icon="today-outline" label="Due today" value={groups.due.length} color={colors.warning} />
+              <Stat icon="hourglass-outline" label="Waiting" value={groups.upcoming.length} color={colors.brandPrimary} />
+              <Stat icon="eye-outline" label="Review" value={groups.review.length} color={colors.purple} />
+            </View>
+            {isSunday && filter === "ALL" ? (
+              <Pressable testID="home-recap-card" onPress={() => router.push("/recap")} style={({ pressed }) => [styles.recap, pressed && { opacity: 0.9 }]}>
+                <View style={styles.recapIcon}>
+                  <Icon name="sparkles" size={18} color={colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recapTitle}>Your week in Await</Text>
+                  <Text style={styles.recapSub}>What got resolved, what slipped, who owes you the most.</Text>
+                </View>
+                <Icon name="chevron-forward" size={16} color={colors.muted} />
+              </Pressable>
+            ) : null}
             {groups.review.length > 0 && filter === "ALL" ? (
               <Pressable testID="home-needs-review-banner" onPress={() => router.push("/needs-review")} style={styles.reviewBanner}>
                 <Icon name="eye-outline" size={18} color={colors.purple} />
@@ -145,8 +166,27 @@ export default function Home() {
   );
 }
 
+function Stat({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.stat}>
+      <Icon name={icon} size={16} color={color} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
+  strip: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 4 },
+  stat: { flex: 1, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, borderRadius: 14, paddingVertical: 10, alignItems: "center", gap: 2 },
+  statValue: { fontSize: 18, fontWeight: "800", color: c.onSurface },
+  statLabel: { fontSize: 11, color: c.muted },
+  recap: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, borderRadius: 14, padding: 12, marginTop: 8 },
+  recapIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.warningTint, alignItems: "center", justifyContent: "center" },
+  recapTitle: { fontSize: 14.5, fontWeight: "700", color: c.onSurface },
+  recapSub: { fontSize: 12.5, color: c.muted, marginTop: 2 },
   header: { backgroundColor: c.surface, paddingBottom: 4 },
   headerRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, marginBottom: 4 },
   greeting: { fontSize: 22, fontWeight: "800", color: c.onSurface },

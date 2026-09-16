@@ -55,5 +55,13 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - Daily 9 AM summary notification (`/api/summary/today` + DAILY trigger), refreshed on app open and by the background task; toggle in Notification settings.
 - Login/Welcome polish: card layout, coloured Google (deep blue) / Email (tinted) buttons, inline errors, fade-in motion.
 
+## Implemented (2026-06) — Iteration 4
+- Auth visuals: AI-generated Await wallpaper (`assets/images/auth-wallpaper.png`) behind Welcome/Login via `AuthBackdrop` (gradient scrim), official Google "Sign in" button (white, neutral border, full-colour G — `GoogleG.tsx`), single blue CTA (Email), amber accent links. Welcome copy rewritten around the promise-tracking purpose.
+- Await Details rebuilt to reference fidelity: hero card (letter tile + category badge, title/owner, status pill, contextual sentence, 4-column Owner/Type/Expected/Alerts meta), Resolution-signal card (confidence `Ring`, evidence quote, 2×2 actions Yes close it / Still waiting / View evidence / Remind later), Needs-review card, quick-action grid, Status, stepper Timeline ("n of n complete", relative times, paused/next-reminder banner), Evidence and Notes cards, ⋮ menu (edit notes / add evidence / delete).
+- Smart snooze (`SnoozeSheet.tsx`): Tomorrow morning, After their promised date (or Give them 2 more days when late), At my follow-up check-in, Next Monday, In a week, Pick a date (native calendar). Sends `until` ISO to `/snooze`; reused in item, match and needs-review.
+- Weekly recap: `GET /api/recap/weekly` (resolved / slipped / follow-ups / open, top-3 "who owes you most"), `app/recap.tsx` screen, Home Sunday card, Profile row, Sunday 6 PM notification (`notifWeekly` pref + toggle).
+- Offline saving (`src/offline.ts` + `api.ts`): GET responses cached (AsyncStorage), Await create/PATCH/state/snooze/reopen queued in an outbox with optimistic local items (`local_*` ids, `pending` flag, "Syncing" label on cards, banner on details), auto-flush when connectivity returns (health poll + AppState), local→server id remapping. Other actions surface an OfflineError.
+- Home: summary strip (Overdue / Due today / Waiting / Review); AwaitCard meta row (date · turn · syncing).
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

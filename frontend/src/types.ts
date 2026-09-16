@@ -29,6 +29,8 @@ export interface AwaitItem {
   nextCheckAt: string | null;
   resolutionConfidence: number | null;
   resolutionEvidenceId: string | null;
+  /** Set on items created/edited offline and not yet synced. */
+  pending?: boolean;
 }
 
 export interface Evidence {

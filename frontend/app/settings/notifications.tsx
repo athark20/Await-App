@@ -41,6 +41,7 @@ export default function NotificationSettings() {
           <ListRow testID="notif-overdue-toggle" icon="alert-circle-outline" tone="error" title="Overdue reminders" subtitle="Follow-up nudges when someone is late" toggle={prefs.notifOverdue} onToggle={(v) => update({ notifOverdue: v })} />
           <ListRow testID="notif-digest-toggle" icon="eye-outline" tone="purple" title="Needs Review digest" subtitle="A summary instead of repeated pings" toggle={prefs.notifDigest} onToggle={(v) => update({ notifDigest: v })} />
           <ListRow testID="notif-daily-toggle" icon="sunny-outline" tone="warning" title="Daily summary" subtitle="What you’re waiting for today, at 9 AM" toggle={prefs.notifDaily} onToggle={(v) => update({ notifDaily: v })} />
+          <ListRow testID="notif-weekly-toggle" icon="sparkles-outline" tone="success" title="Weekly recap" subtitle="Sunday 6 PM · resolved, slipped, who owes you most" toggle={prefs.notifWeekly} onToggle={(v) => update({ notifWeekly: v })} />
           <ListRow testID="notif-quiet-toggle" icon="moon-outline" tone="neutral" title="Quiet hours" subtitle="No reminders between 10 PM – 8 AM" toggle={prefs.quietHours} onToggle={(v) => update({ quietHours: v })} last />
         </Group>
         <Text style={styles.section}>Channels</Text>

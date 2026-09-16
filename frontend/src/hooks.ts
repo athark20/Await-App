@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/api";
+import { useNetwork } from "@/src/offline";
 import type { AwaitItem, Evidence, TimelineEvent } from "@/src/types";
 import { cancelReminder, scheduleReminder } from "@/src/notifications";
 
@@ -10,7 +10,31 @@ export const keys = {
   events: (id: string) => ["awaits", id, "events"] as const,
   evidence: (id: string) => ["awaits", id, "evidence"] as const,
   stats: ["stats"] as const,
+  recap: ["recap"] as const,
 };
+
+export function useRecap() {
+  return useQuery({ queryKey: keys.recap, queryFn: () => api<WeeklyRecap>("/recap/weekly") });
+}
+
+export interface RecapItem {
+  id: string;
+  ownerName: string;
+  commitment: string;
+  category: AwaitItem["category"];
+  expectedAt: string | null;
+  completedAt: string | null;
+  attentionState: AwaitItem["attentionState"];
+}
+export interface WeeklyRecap {
+  weekStart: string;
+  weekEnd: string;
+  headline: string;
+  counts: { resolved: number; slipped: number; created: number; followups: number; open: number; overdue: number };
+  resolved: RecapItem[];
+  slipped: RecapItem[];
+  owes: { ownerName: string; count: number; overdue: number; oldestExpectedAt: string | null; items: string[] }[];
+}
 
 export function useAwaits(params: Record<string, string | undefined> = {}) {
   const qs = Object.entries(params)
@@ -66,23 +90,5 @@ export function useAwaitAction(id: string) {
 }
 
 export function useOnline() {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    let alive = true;
-    const check = async () => {
-      try {
-        const r = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/health`, { method: "GET" });
-        if (alive) setOnline(r.ok);
-      } catch {
-        if (alive) setOnline(false);
-      }
-    };
-    check();
-    const t = setInterval(check, 15000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, []);
-  return online;
+  return useNetwork().online;
 }

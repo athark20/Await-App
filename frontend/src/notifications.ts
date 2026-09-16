@@ -111,6 +111,23 @@ export async function scheduleDailySummary(body: string, enabled: boolean, quiet
   });
 }
 
+export async function scheduleWeeklyRecap(headline: string, enabled: boolean) {
+  if (Platform.OS === "web") return;
+  await Notifications.cancelScheduledNotificationAsync("await-weekly-recap").catch(() => {});
+  if (!enabled) return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: "await-weekly-recap",
+    content: {
+      title: "Await · Your week",
+      body: headline,
+      data: { recap: true },
+      ...(Platform.OS === "android" ? { channelId: CHANNELS.review } : {}),
+    } as any,
+    // Sunday evening (expo weekday: 1 = Sunday)
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 18, minute: 0 },
+  });
+}
+
 export async function fireTestNotification(item: AwaitItem) {
   if (Platform.OS === "web") return;
   await Notifications.scheduleNotificationAsync({

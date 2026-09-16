@@ -2,15 +2,13 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Icon } from "@/src/components/ui";
 import { AnimatedLogoMark } from "@/src/components/AnimatedLogo";
-import LottieView from "lottie-react-native";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { AuthBackdrop, GoogleButton } from "@/src/components/AuthBackdrop";
 import { useAuth } from "@/src/auth";
 import { useToast } from "@/src/components/Toast";
-
-const orbit = require("../../assets/lottie/await-orbit.json");
 
 export default function Welcome() {
   const styles = useStyles();
@@ -18,8 +16,8 @@ export default function Welcome() {
   const router = useRouter();
   const { loginGoogle, continueAsGuest } = useAuth();
   const toast = useToast();
-  const [busy, setBusy] = useState<string | null>(null);
   const { colors } = useTheme();
+  const [busy, setBusy] = useState<string | null>(null);
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -33,73 +31,56 @@ export default function Welcome() {
   };
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]} testID="welcome-screen">
-      <View style={styles.hero}>
-        <View style={styles.stage}>
-          <View testID="welcome-lottie" style={styles.lottie} pointerEvents="none">
-            <LottieView source={orbit} autoPlay loop style={{ width: 260, height: 260 }} />
-          </View>
-          <Animated.View entering={FadeInUp.duration(600)} style={styles.logoBadge}>
-            <AnimatedLogoMark size={64} />
-          </Animated.View>
+    <AuthBackdrop>
+      <View style={[styles.root, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]} testID="welcome-screen">
+        <Animated.View entering={FadeInUp.duration(600)} style={styles.wordmark}>
+          <AnimatedLogoMark size={28} />
+          <Text style={styles.wordmarkText}>Await</Text>
+        </Animated.View>
+
+        <View style={styles.hero}>
+          <Animated.Text entering={FadeInDown.delay(500).duration(600)} style={styles.title}>
+            Never chase{"\n"}a promise twice.
+          </Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(700).duration(600)} style={styles.tagline}>
+            Refunds, parcels, documents, quotes — Await remembers who owes you what, and nudges you when it matters.
+          </Animated.Text>
         </View>
-        <Animated.Text entering={FadeInDown.delay(900).duration(500)} style={styles.title}>
-          Await
-        </Animated.Text>
-        <Animated.Text entering={FadeInDown.delay(1100).duration(500)} style={styles.tagline}>
-          Track it. Follow up. Get it done.
-        </Animated.Text>
+
+        <Animated.View entering={FadeInDown.delay(950).duration(600)} style={styles.actions}>
+          <GoogleButton testID="welcome-google-button" onPress={() => run("g", loginGoogle)} busy={busy === "g"} />
+          <Pressable testID="welcome-email-button" onPress={() => router.push("/(auth)/register")} style={({ pressed }) => [styles.emailBtn, pressed && { opacity: 0.9 }]}>
+            <Icon name="mail-outline" size={20} color={colors.onBrandPrimary} />
+            <Text style={styles.emailText}>Continue with Email</Text>
+          </Pressable>
+          <Pressable testID="welcome-guest-button" onPress={() => run("guest", continueAsGuest)} style={styles.guest}>
+            <Text style={styles.guestText}>{busy === "guest" ? "Setting up…" : "Skip for now"}</Text>
+          </Pressable>
+          <Text style={styles.legal}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text>
+          <Pressable testID="welcome-signin-link" onPress={() => router.push("/(auth)/login")} hitSlop={8}>
+            <Text style={styles.signin}>
+              I already have an account <Text style={styles.signinStrong}>Sign in</Text>
+            </Text>
+          </Pressable>
+        </Animated.View>
       </View>
-
-      <Animated.View entering={FadeInDown.delay(1300).duration(600)} style={styles.actions}>
-        <AuthButton testID="welcome-google-button" icon="logo-google" label="Continue with Google" variant="google" onPress={() => run("g", loginGoogle)} busy={busy === "g"} />
-        <AuthButton testID="welcome-email-button" icon="mail-outline" label="Continue with Email" variant="email" onPress={() => router.push("/(auth)/register")} />
-        <Pressable testID="welcome-guest-button" onPress={() => run("guest", continueAsGuest)} style={styles.guest}>
-          <Text style={styles.guestText}>{busy === "guest" ? "Setting up…" : "Skip for now"}</Text>
-        </Pressable>
-        <Text style={styles.legal}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text>
-        <Pressable testID="welcome-signin-link" onPress={() => router.push("/(auth)/login")} hitSlop={8}>
-          <Text style={styles.signin}>
-            I already have an account <Text style={{ color: colors.brandPrimary, fontWeight: "700" }}>Sign in</Text>
-          </Text>
-        </Pressable>
-      </Animated.View>
-    </View>
-  );
-}
-
-function AuthButton({ icon, label, onPress, busy, testID, variant }: { icon: string; label: string; onPress: () => void; busy?: boolean; testID: string; variant: "google" | "email" }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  const google = variant === "google";
-  return (
-    <Pressable testID={testID} onPress={onPress} disabled={busy} style={({ pressed }) => [styles.authBtn, google ? styles.authGoogle : styles.authEmail, pressed && { opacity: 0.85 }]}>
-      {google ? (
-        <View style={styles.googleIcon}><Icon name={icon} size={18} color={colors.brandPrimary} /></View>
-      ) : (
-        <Icon name={icon} size={20} color={colors.onBrandTertiary} />
-      )}
-      <Text style={[styles.authLabel, { color: google ? colors.onBrandPrimary : colors.onBrandTertiary }]}>{busy ? "Please wait…" : label}</Text>
-    </Pressable>
+    </AuthBackdrop>
   );
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface, paddingHorizontal: spacing.xxl, justifyContent: "space-between" },
-  hero: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  stage: { width: 260, height: 260, alignItems: "center", justifyContent: "center", marginBottom: -20 },
-  lottie: { position: "absolute", width: 260, height: 260 },
-  logoBadge: { width: 112, height: 112, borderRadius: 32, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 36, fontWeight: "800", color: c.onSurface, letterSpacing: -0.5 },
-  tagline: { fontSize: 16, color: c.muted },
+  root: { flex: 1, paddingHorizontal: spacing.xxl, justifyContent: "space-between" },
+  wordmark: { flexDirection: "row", alignItems: "center", gap: 10 },
+  wordmarkText: { fontSize: 20, fontWeight: "800", color: c.onWallpaper, letterSpacing: -0.3 },
+  hero: { flex: 1, justifyContent: "flex-end", gap: 12, paddingBottom: 28 },
+  title: { fontSize: 34, lineHeight: 40, fontWeight: "800", color: c.onWallpaper, letterSpacing: -0.6 },
+  tagline: { fontSize: 15.5, lineHeight: 22, color: c.onWallpaperMuted },
   actions: { gap: 12 },
-  authBtn: { height: 52, borderRadius: radius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  authGoogle: { backgroundColor: c.brandPrimary },
-  authEmail: { backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
-  googleIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.onBrandPrimary, alignItems: "center", justifyContent: "center" },
-  authLabel: { fontSize: 15.5, fontWeight: "700" },
+  emailBtn: { height: 52, borderRadius: radius.md, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  emailText: { fontSize: 15.5, fontWeight: "700", color: c.onBrandPrimary },
   guest: { height: 44, alignItems: "center", justifyContent: "center" },
-  guestText: { color: c.brandPrimary, fontWeight: "600", fontSize: 15 },
-  legal: { fontSize: 11.5, color: c.muted, textAlign: "center", lineHeight: 16 },
-  signin: { textAlign: "center", color: c.muted, fontSize: 13.5, marginTop: 4 },
+  guestText: { color: c.onWallpaper, fontWeight: "600", fontSize: 15 },
+  legal: { fontSize: 11.5, color: c.onWallpaperMuted, textAlign: "center", lineHeight: 16 },
+  signin: { textAlign: "center", color: c.onWallpaperMuted, fontSize: 13.5, marginTop: 4 },
+  signinStrong: { color: c.warning, fontWeight: "700" },
 }));

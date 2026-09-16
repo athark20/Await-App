@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Chips, Icon, EmptyState } from "@/src/components/ui";
@@ -16,7 +17,11 @@ export default function Search() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [q, setQ] = useState("");
+  const params = useLocalSearchParams<{ q?: string }>();
+  const [q, setQ] = useState(params.q ?? "");
+  useEffect(() => {
+    if (params.q) setQ(params.q);
+  }, [params.q]);
   const [state, setState] = useState<StateF>("ALL");
   const [cat, setCat] = useState<Category | "ALL">("ALL");
   const [time, setTime] = useState<TimeF>("ANY");
