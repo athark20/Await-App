@@ -75,5 +75,11 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - My Progress: `GET /api/stats/monthly` + `MonthlyChart` (last 6 months, Awaits opened vs closed by default, Money owed vs recovered toggle). Donut `origin` prop replaced with transform (web warning fix).
 - Home/Add/Profile fidelity pass pending user's reference screenshots (not yet shared).
 
+## Implemented (2026-06) — Iteration 7
+- Category Insights: `GET /api/stats/categories` (per-kind slip rate, avg days late, worst owner, tips) → "What slips most" card on My Progress with "Chase X early" links to owner profiles.
+- Recurring templates: `templates` collection + `GET/POST/PATCH/DELETE /api/templates`, `/templates/{id}/run`, `/templates/tick` (also runs inside `/reminders/tick`). Screens `app/templates.tsx` (list, Create now, Pause/Resume) and `app/template-edit.tsx` (weekly/monthly/quarterly/yearly, day pickers, expected-within days, amount). Entry: Profile → Recurring Awaits; item ⋮ → "Make it recurring" (prefilled). Home runs due templates on open.
+- Share Progress Card: `ShareRecapCard.tsx` — branded dark card (fixed brand colours), captured with react-native-view-shot → expo-sharing on device / PNG download on web, plus share/copy-as-text fallback. Entry: Recap header share icon + CTA strip.
+- Theme: light/dark/system already available (Preferences → Appearance).
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

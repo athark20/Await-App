@@ -112,6 +112,8 @@ function Gate() {
           <Stack.Screen name="stats" />
           <Stack.Screen name="recap" />
           <Stack.Screen name="owners" />
+          <Stack.Screen name="templates" />
+          <Stack.Screen name="template-edit" />
           <Stack.Screen name="owner/[name]" />
           <Stack.Screen name="settings/notifications" />
           <Stack.Screen name="settings/preferences" />

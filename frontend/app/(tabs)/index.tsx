@@ -39,6 +39,16 @@ export default function Home() {
     api<{ headline: string }>("/recap/weekly").then((r) => scheduleWeeklyRecap(r.headline, prefs.notifWeekly)).catch(() => {});
   }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily, prefs.notifWeekly]);
 
+  // Recurring templates: create anything that's due, then refresh the list.
+  useEffect(() => {
+    api<{ created: unknown[] }>("/templates/tick", { method: "POST" })
+      .then((r) => {
+        if (r.created.length) q.refetch();
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isSunday = dayjs().day() === 0;
 
   const groups = useMemo(() => {

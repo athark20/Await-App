@@ -110,3 +110,6 @@ Implemented: wallpaper on register/forgot (+AuthHeader), brand headline on welco
 
 ## Iteration 6 (main agent)
 Implemented: owner bulk follow-up (draft + sent endpoints, followup screen owner mode, owner page button), reliability alert + reminderLeadDays in AwaitForm/create, GET /stats/monthly + MonthlyChart on My Progress, dash-free AI drafts. needs_retesting: all.
+
+## Iteration 7 (main agent)
+Implemented: /stats/categories + CategoryInsights on stats; templates CRUD/run/tick + templates screens + item menu "Make it recurring" + Home tick; ShareRecapSheet (view-shot + expo-sharing, web download). needs_retesting: all. Self-tested: template create (Landlord monthly 5th) left in alex's data intentionally; share image download on web OK.

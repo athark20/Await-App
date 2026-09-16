@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +9,8 @@ import { ErrorRetry } from "@/src/components/common";
 import { CATEGORY_TONE } from "@/src/components/AwaitCard";
 import { useRecap, type RecapItem } from "@/src/hooks";
 import { fromNow, money } from "@/src/format";
+import { ShareRecapSheet } from "@/src/components/ShareRecapCard";
+import { useAuth } from "@/src/auth";
 
 export default function WeeklyRecap() {
   const styles = useStyles();
@@ -17,15 +19,30 @@ export default function WeeklyRecap() {
   const { colors } = useTheme();
   const q = useRecap();
   const r = q.data;
+  const { user } = useAuth();
+  const [share, setShare] = useState(false);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="recap-screen">
-      <ScreenHeader title="Weekly Recap" />
+      <ScreenHeader
+        title="Weekly Recap"
+        right={r ? (
+          <Pressable testID="recap-share-button" onPress={() => setShare(true)} style={styles.iconBtn} hitSlop={8}>
+            <Icon name="share-social-outline" size={21} color={colors.brandPrimary} />
+          </Pressable>
+        ) : undefined}
+      />
+      {r ? <ShareRecapSheet visible={share} onClose={() => setShare(false)} recap={r} userName={user?.name} /> : null}
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
         {q.isLoading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} /> : null}
         {q.isError ? <ErrorRetry onRetry={q.refetch} /> : null}
         {r ? (
           <>
+            <Pressable testID="recap-share-card-cta" onPress={() => setShare(true)} style={styles.shareCta}>
+              <Icon name="image-outline" size={16} color={colors.brandPrimary} />
+              <Text style={styles.shareCtaText}>Turn this week into a shareable card</Text>
+              <Icon name="chevron-forward" size={14} color={colors.muted} />
+            </Pressable>
             <View style={styles.heroCard} testID="recap-hero">
               <Text style={styles.range}>{dayjs(r.weekStart).format("D MMM")} – {dayjs(r.weekEnd).format("D MMM")}</Text>
               <Text style={styles.headline} testID="recap-headline">{r.headline}</Text>
@@ -123,6 +140,9 @@ function ItemRow({ item, right, last }: { item: RecapItem; right: React.ReactNod
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
+  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  shareCta: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.brandTertiary, borderRadius: radius.md, paddingHorizontal: 12, height: 40 },
+  shareCtaText: { flex: 1, fontSize: 13, fontWeight: "700", color: c.brandPrimary },
   content: { paddingHorizontal: spacing.lg, gap: 12, paddingTop: 4 },
   heroCard: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, gap: 8 },
   range: { fontSize: 12.5, color: c.muted, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },

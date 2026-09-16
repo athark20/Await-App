@@ -120,7 +120,8 @@
         {
           "minimumInterval": 360
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

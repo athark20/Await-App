@@ -802,6 +802,186 @@ async def stats_monthly(user=Depends(get_user), months: int = 6):
     return {"months": out, "currency": main_currency(docs)}
 
 
+CATEGORY_LABEL = {"DELIVERY": "Deliveries", "REFUND": "Refunds", "DOCUMENT": "Documents", "APPOINTMENT": "Appointments", "PAYMENT": "Payments", "OTHER": "Other"}
+
+
+@api.get("/stats/categories")
+async def stats_categories(user=Depends(get_user)):
+    """Which kinds of promises slip most: per category slip rate, avg days late and the owner to chase early."""
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(5000)]
+    today = now().date()
+    out = []
+    for cat in ["DELIVERY", "REFUND", "DOCUMENT", "APPOINTMENT", "PAYMENT", "OTHER"]:
+        items = [d for d in docs if d["category"] == cat]
+        if not items:
+            continue
+        judged, slipped, late_days, owners = 0, 0, [], {}
+        for d in items:
+            exp = parse_dt(d.get("expectedAt"))
+            if not exp:
+                continue
+            judged += 1
+            if d["state"] == "DONE":
+                comp = parse_dt(d.get("completedAt"))
+                late = (comp.date() - exp.date()).days if comp else 0
+            else:
+                late = (today - exp.date()).days
+            if late > 0:
+                slipped += 1
+                late_days.append(late)
+                owners[d["ownerName"]] = owners.get(d["ownerName"], 0) + 1
+        worst = max(owners, key=owners.get) if owners else None
+        out.append({
+            "category": cat, "total": len(items), "open": len([d for d in items if d["state"] != "DONE"]),
+            "overdue": len([d for d in items if d["attentionState"] == "OVERDUE"]), "judged": judged, "slipped": slipped,
+            "slipRate": (round(slipped / judged, 2) if judged else None), "avgDaysLate": (round(sum(late_days) / len(late_days), 1) if late_days else 0),
+            "worstOwner": worst, "owed": money_sum([d for d in items if d["state"] != "DONE"]),
+        })
+    out.sort(key=lambda c: (-(c["slipRate"] or 0), -c["avgDaysLate"], -c["total"]))
+    tips = []
+    for c in out[:2]:
+        if c["slipRate"]:
+            tips.append(f"{CATEGORY_LABEL.get(c['category'], c['category'])} slip {int(c['slipRate'] * 100)}% of the time"
+                        + (f", usually {c['avgDaysLate']:g} days late" if c["avgDaysLate"] else "")
+                        + (f". Chase {c['worstOwner']} a few days before the date." if c["worstOwner"] else "."))
+    return {"categories": out, "tips": tips, "currency": main_currency(docs)}
+
+
+# ---------------------------------------------------------------- Recurring templates
+class TemplateIn(BaseModel):
+    title: str
+    ownerName: str
+    commitment: str
+    category: str = "OTHER"
+    state: str = "THEIR_TURN"
+    notes: str = ""
+    amount: Optional[float] = None
+    currency: str = "INR"
+    every: str = "month"  # week | month | quarter | year
+    dayOfMonth: int = 1  # for month/quarter/year
+    weekday: int = 0  # for week: 0=Mon .. 6=Sun
+    expectedAfterDays: int = 7  # expected date = created + N days
+    active: bool = True
+
+
+class TemplatePatch(BaseModel):
+    title: Optional[str] = None
+    ownerName: Optional[str] = None
+    commitment: Optional[str] = None
+    category: Optional[str] = None
+    state: Optional[str] = None
+    notes: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    every: Optional[str] = None
+    dayOfMonth: Optional[int] = None
+    weekday: Optional[int] = None
+    expectedAfterDays: Optional[int] = None
+    active: Optional[bool] = None
+
+
+def next_run(t: dict, after: datetime) -> datetime:
+    """Next 9:00 local-ish (UTC) occurrence strictly after `after`."""
+    every = t.get("every", "month")
+    if every == "week":
+        wd = int(t.get("weekday", 0)) % 7
+        d = after.date() + timedelta(days=1)
+        while d.weekday() != wd:
+            d += timedelta(days=1)
+        return datetime(d.year, d.month, d.day, 9, tzinfo=timezone.utc)
+    step = {"month": 1, "quarter": 3, "year": 12}.get(every, 1)
+    dom = max(1, min(28, int(t.get("dayOfMonth", 1))))
+    y, m = after.year, after.month
+    cand = datetime(y, m, dom, 9, tzinfo=timezone.utc)
+    while cand <= after:
+        m += step
+        while m > 12:
+            y, m = y + 1, m - 12
+        cand = datetime(y, m, dom, 9, tzinfo=timezone.utc)
+    return cand
+
+
+def out_template(t: dict):
+    return clean({k: v for k, v in t.items() if k != "user_id"})
+
+
+async def run_template(t: dict, user_id: str, reason: str = "schedule"):
+    n = now()
+    exp = n + timedelta(days=int(t.get("expectedAfterDays") or 0))
+    doc = {
+        "id": uid("aw"), "user_id": user_id, "title": t["title"], "ownerName": t["ownerName"], "commitment": t["commitment"],
+        "expectedAt": exp, "expectedText": None, "expectedDateOnly": True, "state": t.get("state", "THEIR_TURN"), "attentionState": "NORMAL",
+        "category": t.get("category", "OTHER"), "notes": t.get("notes", ""), "sourceType": "MANUAL", "sourceAppLabel": "Recurring",
+        "sourceEvidenceIds": [], "createdAt": n, "updatedAt": n, "completedAt": None, "lastReminderAt": None,
+        "nextReminderAt": exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None,
+        "nextCheckAt": None, "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
+        "amount": t.get("amount"), "currency": t.get("currency", "INR"), "templateId": t["id"],
+    }
+    await db.awaits.insert_one(doc)
+    await add_event(doc["id"], user_id, "CREATED", f"Created from recurring template · {t['title']}")
+    await db.templates.update_one({"id": t["id"]}, {"$set": {"lastRunAt": n, "nextRunAt": next_run(t, n), "runs": int(t.get("runs") or 0) + 1}})
+    return out_await(doc)
+
+
+async def run_due_templates(user_id: str):
+    created = []
+    async for t in db.templates.find({"user_id": user_id, "active": True, "nextRunAt": {"$lte": now()}}, {"_id": 0}):
+        created.append(await run_template(t, user_id))
+    return created
+
+
+@api.get("/templates")
+async def list_templates(user=Depends(get_user)):
+    docs = await db.templates.find({"user_id": user["user_id"]}, {"_id": 0}).sort("nextRunAt", 1).to_list(500)
+    return [out_template(t) for t in docs]
+
+
+@api.post("/templates")
+async def create_template(body: TemplateIn, user=Depends(get_user)):
+    n = now()
+    t = {**body.model_dump(), "id": uid("tpl"), "user_id": user["user_id"], "createdAt": n, "lastRunAt": None, "runs": 0}
+    t["currency"] = (t["currency"] or "INR").upper()[:3]
+    t["nextRunAt"] = next_run(t, n)
+    await db.templates.insert_one(t)
+    return out_template(t)
+
+
+@api.patch("/templates/{tid}")
+async def patch_template(tid: str, body: TemplatePatch, user=Depends(get_user)):
+    t = await db.templates.find_one({"id": tid, "user_id": user["user_id"]}, {"_id": 0})
+    if not t:
+        raise HTTPException(404, detail="Template not found")
+    upd = body.model_dump(exclude_none=True)
+    t.update(upd)
+    if any(k in upd for k in ("every", "dayOfMonth", "weekday")):
+        t["nextRunAt"] = next_run(t, now())
+    await db.templates.update_one({"id": tid}, {"$set": {k: t[k] for k in list(upd) + ["nextRunAt"]}})
+    return out_template(t)
+
+
+@api.delete("/templates/{tid}")
+async def delete_template(tid: str, user=Depends(get_user)):
+    r = await db.templates.delete_one({"id": tid, "user_id": user["user_id"]})
+    if not r.deleted_count:
+        raise HTTPException(404, detail="Template not found")
+    return {"ok": True}
+
+
+@api.post("/templates/{tid}/run")
+async def run_template_now(tid: str, user=Depends(get_user)):
+    t = await db.templates.find_one({"id": tid, "user_id": user["user_id"]}, {"_id": 0})
+    if not t:
+        raise HTTPException(404, detail="Template not found")
+    return await run_template(t, user["user_id"], "manual")
+
+
+@api.post("/templates/tick")
+async def templates_tick(user=Depends(get_user)):
+    """Create Awaits for every template whose schedule is due (called on app open / background)."""
+    created = await run_due_templates(user["user_id"])
+    return {"created": created}
+
+
 @api.post("/reminders/tick")
 async def reminders_tick(user=Depends(get_user)):
     """Reminder engine: returns due reminders and escalates ignored ones to NEEDS_REVIEW."""
@@ -826,6 +1006,7 @@ async def reminders_tick(user=Depends(get_user)):
                 kind = "OVERDUE"
         await db.awaits.update_one({"id": a["id"]}, {"$set": upd})
         fired.append({"awaitId": a["id"], "kind": kind, "title": f"{a['ownerName']} hasn't {a['commitment'][0].lower() + a['commitment'][1:]} yet." if kind != "NEEDS_REVIEW" else f"{a['ownerName']} · {a['commitment']} needs review", "ownerName": a["ownerName"], "commitment": a["commitment"]})
+    await run_due_templates(user["user_id"])
     return {"fired": fired}
 
 

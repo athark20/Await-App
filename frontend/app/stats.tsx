@@ -6,6 +6,7 @@ import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { ScreenHeader, IconBox } from "@/src/components/ui";
 import { useStats } from "@/src/hooks";
 import { MonthlyChart } from "@/src/components/MonthlyChart";
+import { CategoryInsights } from "@/src/components/CategoryInsights";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
 import { categoryIcon } from "@/src/format";
 import { CATEGORY_TONE } from "@/src/components/AwaitCard";
@@ -66,6 +67,7 @@ export default function Stats() {
             </View>
 
             <MonthlyChart />
+            <CategoryInsights />
             <Text style={styles.section}>Category breakdown</Text>
             <View style={styles.card}>
               {CATEGORIES.map((c: Category, i) => {

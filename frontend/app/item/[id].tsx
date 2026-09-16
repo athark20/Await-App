@@ -124,6 +124,7 @@ export default function ItemDetails() {
   const openMenu = (k: string) => {
     if (k === "notes") { setNotes(item.notes ?? ""); setSheet("editNotes"); }
     else if (k === "amount") { setAmount(item.amount ? String(item.amount) : ""); setSheet("editAmount"); }
+    else if (k === "recurring") { setSheet(null); router.push({ pathname: "/template-edit", params: { who: item.ownerName, what: item.commitment, category: item.category, amount: item.amount ? String(item.amount) : "", currency: item.currency ?? "INR", state: item.state === "MY_TURN" ? "MY_TURN" : "THEIR_TURN", notes: item.notes ?? "" } }); }
     else if (k === "evidence") setSheet("addEvidence");
     else if (k === "delete") setSheet("delete");
   };
@@ -343,6 +344,7 @@ export default function ItemDetails() {
           { key: "notes", label: "Edit notes", icon: "create-outline" },
           { key: "amount", label: item.amount ? "Edit amount" : "Add amount", subtitle: "Money involved, counts toward totals owed", icon: "cash-outline" },
           { key: "evidence", label: "Add evidence", icon: "attach-outline" },
+          { key: "recurring", label: "Make it recurring", subtitle: "Recreate this Await weekly, monthly or yearly", icon: "repeat-outline" },
           { key: "delete", label: "Delete Await", subtitle: "Removes notes and evidence too", icon: "trash-outline" },
         ]}
         onSelect={openMenu}
