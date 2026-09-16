@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, spacing } from "@/src/theme";
 import { Group, ListRow, ScreenHeader, Chips } from "@/src/components/ui";
@@ -27,6 +27,18 @@ export default function Preferences() {
               last={i === 2}
             />
           ))}
+        </Group>
+        <Text style={styles.section}>Calendar</Text>
+        <Group>
+          <ListRow
+            testID="pref-calendar-sync"
+            icon="calendar-outline"
+            title="Add new Awaits to my calendar"
+            subtitle={Platform.OS === "web" ? "Works on your phone: promised dates appear next to your meetings" : "Promised dates appear next to your meetings (syncs with Google Calendar)"}
+            toggle={prefs.calendarSync}
+            onToggle={(v) => update({ calendarSync: v })}
+            last
+          />
         </Group>
         <Text style={styles.section}>Default snooze</Text>
         <Chips<string>

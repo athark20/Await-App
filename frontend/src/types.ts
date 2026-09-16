@@ -31,6 +31,7 @@ export interface AwaitItem {
   resolutionEvidenceId: string | null;
   amount?: number | null;
   currency?: string | null;
+  calendarEventId?: string | null;
   /** Set on items created/edited offline and not yet synced. */
   pending?: boolean;
 }

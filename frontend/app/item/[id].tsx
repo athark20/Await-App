@@ -16,6 +16,8 @@ import { amountLabel, categoryIcon, dueLabel, fmtDate, fromNow, sourceLabel, sta
 import { CATEGORY_LABEL, type AwaitItem, type Evidence } from "@/src/types";
 import { useToast } from "@/src/components/Toast";
 import { cancelReminder } from "@/src/notifications";
+import { CALENDAR_REASON, openGoogleCalendar, removeFromDeviceCalendar, syncToDeviceCalendar } from "@/src/calendar";
+import { Linking, Platform } from "react-native";
 import { ErrorRetry } from "@/src/components/common";
 
 type SheetKind = null | "remind" | "done" | "delete" | "reopen" | "addEvidence" | "editNotes" | "editAmount" | "menu";
@@ -93,6 +95,7 @@ export default function ItemDetails() {
   const del = async () => {
     await api(`/awaits/${id}`, { method: "DELETE" });
     cancelReminder(id);
+    removeFromDeviceCalendar(item);
     invalidate();
     setSheet(null);
     toast.show("Await deleted", "success");
@@ -121,8 +124,22 @@ export default function ItemDetails() {
     setSheet(null);
     invalidate(id);
   };
+  const addToCalendar = async () => {
+    setSheet(null);
+    if (Platform.OS === "web") return openGoogleCalendar(item);
+    const r = await syncToDeviceCalendar(item, { requestIfNeeded: true });
+    if (r.ok) {
+      invalidate(id);
+      toast.show(r.updated ? "Calendar event updated" : "Added to your calendar", "success");
+    } else if (r.reason === "blocked") {
+      toast.show(CALENDAR_REASON.blocked, "error");
+      Linking.openSettings();
+    } else toast.show(CALENDAR_REASON[r.reason], "error");
+  };
   const openMenu = (k: string) => {
-    if (k === "notes") { setNotes(item.notes ?? ""); setSheet("editNotes"); }
+    if (k === "calendar") addToCalendar();
+    else if (k === "gcal") { setSheet(null); openGoogleCalendar(item); }
+    else if (k === "notes") { setNotes(item.notes ?? ""); setSheet("editNotes"); }
     else if (k === "amount") { setAmount(item.amount ? String(item.amount) : ""); setSheet("editAmount"); }
     else if (k === "recurring") { setSheet(null); router.push({ pathname: "/template-edit", params: { who: item.ownerName, what: item.commitment, category: item.category, amount: item.amount ? String(item.amount) : "", currency: item.currency ?? "INR", state: item.state === "MY_TURN" ? "MY_TURN" : "THEIR_TURN", notes: item.notes ?? "" } }); }
     else if (k === "evidence") setSheet("addEvidence");
@@ -333,6 +350,7 @@ export default function ItemDetails() {
           <DetailRow label="Expected by" value={fmtDate(item.expectedAt)} />
           {item.expectedText ? <DetailRow label="As shared" value={`“${item.expectedText}”`} /> : null}
           <DetailRow label="Source" value={`${sourceLabel(item.sourceType)}${item.sourceAppLabel ? ` · ${item.sourceAppLabel}` : ""}`} />
+          {item.calendarEventId ? <DetailRow label="Calendar" value="Synced to device calendar" /> : null}
           {item.nextCheckAt && !isDone ? <DetailRow label="Next check-in" value={fmtDate(item.nextCheckAt)} /> : null}
           <DetailRow label="Created" value={fmtDate(item.createdAt)} last />
         </View>
@@ -345,6 +363,10 @@ export default function ItemDetails() {
           { key: "amount", label: item.amount ? "Edit amount" : "Add amount", subtitle: "Money involved, counts toward totals owed", icon: "cash-outline" },
           { key: "evidence", label: "Add evidence", icon: "attach-outline" },
           { key: "recurring", label: "Make it recurring", subtitle: "Recreate this Await weekly, monthly or yearly", icon: "repeat-outline" },
+          ...(item.expectedAt ? [
+            { key: "calendar", label: item.calendarEventId ? "Update in my calendar" : "Add to my calendar", subtitle: Platform.OS === "web" ? "Opens Google Calendar pre-filled" : "Shows next to your meetings (syncs with Google Calendar)", icon: "calendar-outline" },
+            ...(Platform.OS !== "web" ? [{ key: "gcal", label: "Open in Google Calendar", subtitle: "Pre-filled event in the Google Calendar app or web", icon: "logo-google" }] : []),
+          ] : []),
           { key: "delete", label: "Delete Await", subtitle: "Removes notes and evidence too", icon: "trash-outline" },
         ]}
         onSelect={openMenu}

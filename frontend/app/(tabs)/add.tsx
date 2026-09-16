@@ -10,6 +10,8 @@ import { Sheet } from "@/src/components/Sheet";
 import { usesNativeTabs } from "@/src/navigation";
 import { openIncomingShare } from "@/src/share-intent";
 import { useToast } from "@/src/components/Toast";
+import { QuickVoice } from "@/src/components/QuickVoice";
+import { FreeLimitAi } from "@/app/capture/share";
 
 export default function Add() {
   const styles = useStyles();
@@ -17,6 +19,7 @@ export default function Add() {
   const router = useRouter();
   const toast = useToast();
   const [simulate, setSimulate] = useState(false);
+  const [aiLimit, setAiLimit] = useState(false);
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const pickShared = async (key: string) => {
@@ -40,15 +43,18 @@ export default function Add() {
   return (
     <View style={styles.root} testID="add-screen">
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: bottomChrome + 24 }]}>
-        <View style={{ alignItems: "center", gap: 8, marginBottom: 20 }}>
+        <View style={{ alignItems: "center", gap: 8, marginBottom: 16 }}>
           <IconBox name="add-outline" size={72} />
           <Text style={styles.title}>Add to Await</Text>
           <Text style={styles.sub}>Capture it in seconds.</Text>
         </View>
+        <View style={{ marginBottom: 12 }}>
+          <QuickVoice onAiLimit={() => setAiLimit(true)} />
+        </View>
 
         <Option testID="add-share-option" icon="share-social-outline" title="Share from another app" subtitle="Text, image, link or document" onPress={() => setSimulate(true)} />
         <Option testID="add-screenshot-option" icon="image-outline" title="Take/select a screenshot" subtitle="Import and extract details" onPress={() => router.push("/capture/screenshot")} />
-        <Option testID="add-voice-option" icon="mic-outline" title="Voice input" subtitle="e.g. “Amazon said refund in 7 days”" onPress={() => router.push("/capture/voice")} />
+        <Option testID="add-voice-option" icon="mic-outline" title="Voice with transcript" subtitle="Record, review the words, then extract" onPress={() => router.push("/capture/voice")} />
         <Option testID="add-manual-option" icon="create-outline" title="Type manually" subtitle="Add details yourself" onPress={() => router.push("/capture/manual")} />
 
         <View style={{ marginTop: 12 }}>
@@ -56,6 +62,7 @@ export default function Add() {
         </View>
         <Text style={styles.formats}>Supported: text · images · PDF · DOC/DOCX · CSV · XLS/XLSX · links</Text>
       </ScrollView>
+      <FreeLimitAi visible={aiLimit} onClose={() => setAiLimit(false)} onManual={() => { setAiLimit(false); router.push("/capture/manual"); }} />
 
       <Sheet
         visible={simulate}

@@ -13,7 +13,10 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Capture screenshots and receipts to track commitments",
         "NSPhotoLibraryUsageDescription": "Pick screenshots to extract who owes you what",
-        "NSMicrophoneUsageDescription": "Record voice notes to add Awaits hands-free"
+        "NSMicrophoneUsageDescription": "Record voice notes to add Awaits hands-free",
+        "NSCalendarsUsageDescription": "Add promised dates to your calendar",
+        "NSCalendarsFullAccessUsageDescription": "Add promised dates to your calendar",
+        "NSRemindersUsageDescription": "Add promised dates to your reminders"
       }
     },
     "android": {
@@ -28,7 +31,9 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ],
       "intentFilters": [
         {
@@ -121,7 +126,13 @@
           "minimumInterval": 360
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Add promised dates to your calendar"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

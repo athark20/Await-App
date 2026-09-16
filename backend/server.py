@@ -276,6 +276,7 @@ class AwaitIn(BaseModel):
 
 
 class AwaitPatch(BaseModel):
+    calendarEventId: Optional[str] = None  # device-calendar event linked to this Await
     ownerName: Optional[str] = None
     commitment: Optional[str] = None
     expectedAt: Optional[str] = None

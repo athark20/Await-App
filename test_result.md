@@ -113,3 +113,6 @@ Implemented: owner bulk follow-up (draft + sent endpoints, followup screen owner
 
 ## Iteration 7 (main agent)
 Implemented: /stats/categories + CategoryInsights on stats; templates CRUD/run/tick + templates screens + item menu "Make it recurring" + Home tick; ShareRecapSheet (view-shot + expo-sharing, web download). needs_retesting: all. Self-tested: template create (Landlord monthly 5th) left in alex's data intentionally; share image download on web OK.
+
+## Iteration 8 (main agent)
+Implemented: QuickVoice on Add tab (one-tap record → transcribe → extract → confirm); calendar sync (expo-calendar device events + Google Calendar link, item menu options, prefs.calendarSync auto-add, PATCH calendarEventId). needs_retesting: Add tab UI, item menu calendar options (web opens Google Calendar URL), preferences toggle, backend PATCH calendarEventId. Device calendar + mic recording are native-only.

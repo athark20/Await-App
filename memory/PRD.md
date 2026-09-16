@@ -81,5 +81,10 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - Share Progress Card: `ShareRecapCard.tsx` — branded dark card (fixed brand colours), captured with react-native-view-shot → expo-sharing on device / PNG download on web, plus share/copy-as-text fallback. Entry: Recap header share icon + CTA strip.
 - Theme: light/dark/system already available (Preferences → Appearance).
 
+## Implemented (2026-06) — Iteration 8
+- Voice Add Anywhere: `QuickVoice` hero card at the top of the Add tab — one tap listens (pulsing ring), second tap stops → Whisper transcription (`/ai/transcribe`) → AI extraction → straight to Confirm. Permission flow per contract (ask → denied toast → blocked → Open Settings). Falls back to the transcript screen if transcription fails; Free AI-limit sheet on 402.
+- Calendar Sync (no OAuth needed): `src/calendar.ts` — device calendar via expo-calendar 57 object API (Android picks the primary/Google calendar so events appear in Google Calendar; iOS default calendar), all-day event on the promised date, updates existing event via stored `calendarEventId` (new PATCH field), removes on delete. Google Calendar pre-filled deep link (`googleCalendarUrl`) for web/everywhere. Item ⋮ → "Add to my calendar" / "Open in Google Calendar"; Preferences → "Add new Awaits to my calendar" (`prefs.calendarSync`) auto-syncs on create. app.json: calendar permissions + plugin.
+- Full two-way Google Calendar API sync (OAuth) not built — would need the user's Google Cloud OAuth credentials.
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

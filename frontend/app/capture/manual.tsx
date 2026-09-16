@@ -9,6 +9,8 @@ import { AwaitForm, amountPayload, emptyForm, type AwaitFormValue } from "@/src/
 import { api } from "@/src/api";
 import { useInvalidateAwaits } from "@/src/hooks";
 import { useToast } from "@/src/components/Toast";
+import { syncToDeviceCalendar } from "@/src/calendar";
+import { usePrefs } from "@/src/prefs";
 import { FreeLimitSheet, useFreeLimit } from "@/src/components/common";
 import { captureStore, itemsToEvidence } from "@/src/capture-store";
 import { scheduleReminder } from "@/src/notifications";
@@ -18,6 +20,7 @@ export default function Manual() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
+  const { prefs } = usePrefs();
   const invalidate = useInvalidateAwaits();
   const limit = useFreeLimit();
   const pending = captureStore.get();
@@ -46,6 +49,7 @@ export default function Manual() {
       });
       invalidate();
       scheduleReminder(created);
+      if (prefs.calendarSync) syncToDeviceCalendar(created, { requestIfNeeded: true }).catch(() => {});
       captureStore.clear();
       toast.show("Saved to Await", "success");
       router.dismissAll?.();

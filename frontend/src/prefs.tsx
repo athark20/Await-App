@@ -13,6 +13,7 @@ interface Prefs {
   notifDigest: boolean;
   notifDaily: boolean;
   notifWeekly: boolean;
+  calendarSync: boolean;
   quietHours: boolean;
   appLock: boolean;
   onboarded: boolean;
@@ -28,6 +29,7 @@ const DEFAULTS: Prefs = {
   notifDigest: true,
   notifDaily: false,
   notifWeekly: true,
+  calendarSync: false,
   quietHours: true,
   appLock: false,
   onboarded: false,
