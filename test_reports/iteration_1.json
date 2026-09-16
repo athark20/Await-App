@@ -1,0 +1,56 @@
+{
+  "summary": "First-pass full test of Await app (backend + frontend). Backend: 18/20 pytest tests pass (90%). All auth, CRUD lifecycle, filters, snooze/reopen/apply-update/resolution/evidence, stats, reminders/tick, plan upgrade, and AI extraction+match+followup-draft work as specified. Two failures reveal ONE real bug: the FREE-plan 30-day cutoff in GET /api/awaits hides the two seeded DONE items (they are 40+/46+ days old), so History appears empty on fresh registrations and `?state=DONE` returns 0. Frontend (web preview 390x844): Welcome → Sign in → login → notification-education → Home renders correctly with 'Good morning, Alex 👋', chips All 5 / Today 3 / Upcoming 2, seeded cards, Amazon+Insurance OVERDUE, Sameer Due today. Tab bar has exactly tab-home/tab-add/tab-search/tab-profile testIDs. Item Details screen shows Details/Updates/Evidence tabs, My Turn/Their Turn/Done selector, Remind Tomorrow/Follow Up/Mark as Done actions; Remind Later sheet has Tomorrow/In 3 days/Next week/Custom. Add tab shows Share/Screenshot/Voice/Type-manually; Share sheet lists 6 sample shares; Shared message → Share preview screen with Analyze button. Search & Profile tabs load. No SafeAreaView/deprecated-package issues detected in code. No React Native red-screen errors.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/awaits (and ?state=DONE, and /stats history flow)",
+        "issue": "FREE-plan 30-day cutoff in server.py:354-356 removes seeded DONE items (Airline & old Amazon, ~40 & ~46 days old) from the listing. Result: (a) fresh registrations show only 5 awaits from the listing endpoint instead of 7, (b) GET /api/awaits?state=DONE returns empty for freshly-registered FREE users, breaking the History screen. Either extend the cutoff, mark seed items as within window, or exclude explicit state=DONE queries from the cutoff.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Home screen list",
+        "issue": "OVERDUE cards are rendered twice — once in the top 'Today' section and again in a bottom 'Overdue (2)' section. Insurance and Amazon show up twice in the same scroll. Same data-testid (await-card-aw_...) is emitted twice which also duplicates selectors.",
+        "testID": "await-card-aw_*",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Bottom tab bar",
+        "issue": "Tab links render duplicated in DOM (`data-testid=\"tab-profile\"` resolves to 2 elements; likely other tabs too). Not a functional break but breaks strict Playwright selectors and violates unique-ID expectation.",
+        "testID": "tab-home / tab-add / tab-search / tab-profile",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_await_backend.py",
+    "/app/test_reports/pytest/results.xml"
+  ],
+  "action_items": [
+    "Fix listing filter: allow seeded DONE items to appear (extend FREE-plan cutoff, or skip cutoff when caller passes state=DONE / History screen). Verifiable via `pytest tests/test_await_backend.py::TestAuth::test_register_seeds_7 tests/test_await_backend.py::TestListFilters::test_state_done_filter`.",
+    "Deduplicate Home list rendering — overdue cards appearing in both 'Today' and 'Overdue' sections.",
+    "Ensure bottom tab bar (in app/(tabs)/_layout.tsx or ui.tsx) renders each tab exactly once; currently emits two DOM nodes per tab causing duplicate testIDs."
+  ],
+  "critical_code_review_comments": [
+    "server.py line 354-356: FREE-plan 30-day filter conflicts with the seeded-DONE demo data (which is 40+ days old). Consider seeding completedAt within cutoff or bypassing this filter when state=DONE is explicit.",
+    "server.py compute_attention: relies on parse_dt(a.get('updatedAt')) which can be None; if a doc lacks updatedAt this will crash. Consider guarding with a null check."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_await_backend.py (new)"
+  ],
+  "success_rate": {"backend": "90% (18/20 pytest)", "frontend": "~95% (all reached flows render; two UI polish bugs)"},
+  "seed_data_creation": "Registered ~5 throwaway test users (test_*, crud_*, ai_*, limit_*, and one fresh user per test) using unique uuid emails to avoid polluting alex@example.com. No manual cleanup implemented — MongoDB test_database now contains these users.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend URL: https://await-android.preview.emergentagent.com (from EXPO_PUBLIC_BACKEND_URL). Alex password is 'password123'. Use unique emails for new registrations. AI endpoints take 4–8s — set timeout>=60s. The FREE-plan 30-day cutoff bug affects both /api/awaits listing and History screen. Frontend tabs render duplicated in the web preview (Playwright: use .first when selecting tab-*). Google OAuth cannot be tested (external). Voice/screenshot rely on native pickers, not testable via web.",
+  "rca_of_issue": "RCA — seeded DONE items disappear on FREE users: seed_user creates two DONE awaits with completedAt = expected + 2 days where expected is `today - 40d` and `today - 46d`, giving completedAt ≈ 38 and 44 days ago. list_awaits (line 354-356) then applies `cutoff = now - 30d` and drops any DONE whose completedAt < cutoff. Both seeded DONE items are always dropped for FREE users. Reproduction: register a new user, GET /api/awaits — receive 5 (not 7); GET /api/awaits?state=DONE — receive 0. Mitigation options: (1) seed completedAt within 20 days back; (2) skip cutoff when explicit state filter or history flag is provided; (3) remove the cutoff entirely and rely on pagination."
+}
