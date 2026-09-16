@@ -4,6 +4,30 @@ import type { AwaitItem, Category } from "@/src/types";
 
 dayjs.extend(relativeTime);
 
+export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD"];
+const SYMBOL: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ", SGD: "S$" };
+
+export function currencySymbol(code?: string | null) {
+  return SYMBOL[(code ?? "INR").toUpperCase()] ?? `${(code ?? "").toUpperCase()} `;
+}
+
+/** ₹3,499 · $1,200.50 — compact, locale-aware grouping (Indian grouping for INR). */
+export function money(amount?: number | null, currency?: string | null) {
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return "";
+  const code = (currency ?? "INR").toUpperCase();
+  const digits = Number.isInteger(amount) ? 0 : 2;
+  const n = amount.toLocaleString(code === "INR" ? "en-IN" : "en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return `${currencySymbol(code)}${n}`;
+}
+
+/** Amount label for an item, or "" when the commitment text already spells the number out (avoids "Refund ₹3,499 ₹3,499"). */
+export function amountLabel(item: { amount?: number | null; currency?: string | null; commitment: string }) {
+  if (!item.amount) return "";
+  const digits = String(Math.round(item.amount));
+  if (item.commitment.replace(/[,\s]/g, "").includes(digits)) return "";
+  return money(item.amount, item.currency);
+}
+
 export function fromNow(iso?: string | null) {
   return iso ? dayjs(iso).fromNow() : "";
 }

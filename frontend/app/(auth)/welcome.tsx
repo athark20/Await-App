@@ -39,11 +39,15 @@ export default function Welcome() {
         </Animated.View>
 
         <View style={styles.hero}>
-          <Animated.Text entering={FadeInDown.delay(500).duration(600)} style={styles.title}>
-            Never chase{"\n"}a promise twice.
+          <Animated.Text entering={FadeInDown.delay(400).duration(600)} style={styles.kicker}>
+            FOLLOW UP. CLOSE THE LOOP.
           </Animated.Text>
-          <Animated.Text entering={FadeInDown.delay(700).duration(600)} style={styles.tagline}>
-            Refunds, parcels, documents, quotes — Await remembers who owes you what, and nudges you when it matters.
+          <Animated.Text entering={FadeInDown.delay(550).duration(600)} style={styles.title}>
+            Less mental load.{"\n"}
+            <Text style={styles.titleAccent}>More life.</Text>
+          </Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(750).duration(600)} style={styles.tagline}>
+            Await helps you remember, follow up and close open loops, so nothing falls through the cracks.
           </Animated.Text>
         </View>
 
@@ -72,13 +76,15 @@ const useStyles = makeStyles((c) => ({
   root: { flex: 1, paddingHorizontal: spacing.xxl, justifyContent: "space-between" },
   wordmark: { flexDirection: "row", alignItems: "center", gap: 10 },
   wordmarkText: { fontSize: 20, fontWeight: "800", color: c.onWallpaper, letterSpacing: -0.3 },
-  hero: { flex: 1, justifyContent: "flex-end", gap: 12, paddingBottom: 28 },
+  hero: { flex: 1, justifyContent: "flex-end", gap: 10, paddingBottom: 26 },
+  kicker: { fontSize: 11.5, fontWeight: "700", letterSpacing: 2, color: c.warning },
   title: { fontSize: 34, lineHeight: 40, fontWeight: "800", color: c.onWallpaper, letterSpacing: -0.6 },
+  titleAccent: { color: c.brandPrimary },
   tagline: { fontSize: 15.5, lineHeight: 22, color: c.onWallpaperMuted },
-  actions: { gap: 12 },
-  emailBtn: { height: 52, borderRadius: radius.md, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  emailText: { fontSize: 15.5, fontWeight: "700", color: c.onBrandPrimary },
-  guest: { height: 44, alignItems: "center", justifyContent: "center" },
+  actions: { gap: 10 },
+  emailBtn: { height: 46, borderRadius: radius.md, backgroundColor: c.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  emailText: { fontSize: 14.5, fontWeight: "700", color: c.onBrandPrimary },
+  guest: { height: 40, alignItems: "center", justifyContent: "center" },
   guestText: { color: c.onWallpaper, fontWeight: "600", fontSize: 15 },
   legal: { fontSize: 11.5, color: c.onWallpaperMuted, textAlign: "center", lineHeight: 16 },
   signin: { textAlign: "center", color: c.onWallpaperMuted, fontSize: 13.5, marginTop: 4 },

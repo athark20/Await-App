@@ -12,13 +12,13 @@ import { SnoozeSheet, type SnoozePick } from "@/src/components/SnoozeSheet";
 import { CATEGORY_TONE } from "@/src/components/AwaitCard";
 import { useAwait, useAwaitAction, useEvents, useEvidence, useInvalidateAwaits } from "@/src/hooks";
 import { api } from "@/src/api";
-import { categoryIcon, dueLabel, fmtDate, fromNow, sourceLabel, stateLabel } from "@/src/format";
+import { amountLabel, categoryIcon, dueLabel, fmtDate, fromNow, sourceLabel, stateLabel } from "@/src/format";
 import { CATEGORY_LABEL, type AwaitItem, type Evidence } from "@/src/types";
 import { useToast } from "@/src/components/Toast";
 import { cancelReminder } from "@/src/notifications";
 import { ErrorRetry } from "@/src/components/common";
 
-type SheetKind = null | "remind" | "done" | "delete" | "reopen" | "addEvidence" | "editNotes" | "menu";
+type SheetKind = null | "remind" | "done" | "delete" | "reopen" | "addEvidence" | "editNotes" | "editAmount" | "menu";
 
 const EVIDENCE_ICON: Record<string, string> = { SCREENSHOT: "image-outline", IMAGE: "image-outline", DOCUMENT: "document-text-outline", URL: "link-outline", VOICE: "mic-outline" };
 
@@ -56,6 +56,7 @@ export default function ItemDetails() {
   const [viewEv, setViewEv] = useState<Evidence | null>(null);
   const [newEvidence, setNewEvidence] = useState("");
   const [notes, setNotes] = useState("");
+  const [amount, setAmount] = useState("");
   const item = q.data;
 
   if (q.isLoading || !item) {
@@ -114,8 +115,15 @@ export default function ItemDetails() {
     setSheet(null);
     invalidate(id);
   };
+  const saveAmount = async () => {
+    const n = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    await api(`/awaits/${id}`, { method: "PATCH", json: { amount: Number.isFinite(n) && n > 0 ? n : 0, currency: item.currency ?? "INR" } });
+    setSheet(null);
+    invalidate(id);
+  };
   const openMenu = (k: string) => {
     if (k === "notes") { setNotes(item.notes ?? ""); setSheet("editNotes"); }
+    else if (k === "amount") { setAmount(item.amount ? String(item.amount) : ""); setSheet("editAmount"); }
     else if (k === "evidence") setSheet("addEvidence");
     else if (k === "delete") setSheet("delete");
   };
@@ -152,7 +160,11 @@ export default function ItemDetails() {
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.title} testID="item-title" numberOfLines={2}>{item.commitment}</Text>
-              <Text style={styles.owner} numberOfLines={1}>{item.ownerName}</Text>
+              {amountLabel(item) ? <Text style={styles.amount} testID="item-amount">{amountLabel(item)}</Text> : null}
+              <Pressable testID="item-owner-link" onPress={() => router.push(`/owner/${encodeURIComponent(item.ownerName)}`)} hitSlop={6} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text style={styles.owner} numberOfLines={1}>{item.ownerName}</Text>
+                <Icon name="chevron-forward" size={13} color={colors.muted} />
+              </Pressable>
             </View>
             <Pill text={due.text} tone={due.tone} testID="item-status-pill" />
           </View>
@@ -329,6 +341,7 @@ export default function ItemDetails() {
       <Sheet visible={sheet === "menu"} onClose={() => setSheet(null)} title="Await options" testID="item-menu-sheet"
         options={[
           { key: "notes", label: "Edit notes", icon: "create-outline" },
+          { key: "amount", label: item.amount ? "Edit amount" : "Add amount", subtitle: "Money involved, counts toward totals owed", icon: "cash-outline" },
           { key: "evidence", label: "Add evidence", icon: "attach-outline" },
           { key: "delete", label: "Delete Await", subtitle: "Removes notes and evidence too", icon: "trash-outline" },
         ]}
@@ -340,6 +353,11 @@ export default function ItemDetails() {
       <Sheet visible={sheet === "addEvidence"} onClose={() => setSheet(null)} icon="attach-outline" title="Add Evidence" subtitle="Paste text you received about this Await." primary={{ title: "Save evidence", onPress: addEvidence }} testID="add-evidence-sheet">
         <View style={{ marginTop: 12 }}>
           <Field placeholder="Paste the message, note or link…" value={newEvidence} onChangeText={setNewEvidence} multiline testID="add-evidence-input" />
+        </View>
+      </Sheet>
+      <Sheet visible={sheet === "editAmount"} onClose={() => setSheet(null)} icon="cash-outline" title="Amount" subtitle={`In ${item.currency ?? "INR"}. Leave empty to remove.`} primary={{ title: "Save", onPress: saveAmount }} testID="edit-amount-sheet">
+        <View style={{ marginTop: 12 }}>
+          <Field placeholder="e.g. 3499" value={amount} onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" testID="edit-amount-input" />
         </View>
       </Sheet>
       <Sheet visible={sheet === "editNotes"} onClose={() => setSheet(null)} icon="create-outline" title="Notes" primary={{ title: "Save", onPress: saveNotes }} testID="edit-notes-sheet">
@@ -401,6 +419,7 @@ const useStyles = makeStyles((c) => ({
   heroCatBadge: { position: "absolute", right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border },
   title: { fontSize: 19, fontWeight: "800", color: c.onSurface, letterSpacing: -0.2, lineHeight: 24 },
   owner: { fontSize: 15, fontWeight: "600", color: c.onSurfaceTertiary },
+  amount: { fontSize: 22, fontWeight: "800", color: c.onSurface, letterSpacing: -0.3 },
   heroDesc: { fontSize: 14.5, lineHeight: 21, color: c.onSurfaceSecondary },
   divider: { height: 1, backgroundColor: c.divider },
   metaRow: { flexDirection: "row" },

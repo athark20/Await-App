@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Icon, IconBox, Pill } from "@/src/components/ui";
-import { dueLabel, expectedLine } from "@/src/format";
+import { amountLabel, dueLabel, expectedLine } from "@/src/format";
 import type { AwaitItem, Category } from "@/src/types";
 import type { PillTone } from "@/src/format";
 
@@ -36,22 +36,23 @@ export function AwaitCard({ item, onPress, showClosed }: { item: AwaitItem; onPr
         </Text>
         <Text style={styles.what} numberOfLines={1}>
           {item.commitment}
+          {amountLabel(item) ? <Text style={styles.amount}>  {amountLabel(item)}</Text> : null}
         </Text>
         <View style={styles.metaRow}>
           <Icon name="calendar-outline" size={12} color={colors.muted} />
-          <Text style={styles.sub} numberOfLines={1}>{sub}</Text>
+          <Text style={[styles.sub, { flexShrink: 1 }]} numberOfLines={1}>{sub}</Text>
           {turn ? (
             <>
               <Text style={styles.dot}>·</Text>
               <Icon name={item.state === "MY_TURN" ? "person-outline" : "people-outline"} size={12} color={colors.muted} />
-              <Text style={styles.sub}>{turn}</Text>
+              <Text style={[styles.sub, { flexShrink: 0 }]} numberOfLines={1}>{turn}</Text>
             </>
           ) : null}
           {item.pending ? (
             <>
               <Text style={styles.dot}>·</Text>
               <Icon name="cloud-upload-outline" size={12} color={colors.warning} />
-              <Text style={[styles.sub, { color: colors.warning }]} testID={`await-card-pending-${item.id}`}>Syncing</Text>
+              <Text style={[styles.sub, { color: colors.warning, flexShrink: 0 }]} numberOfLines={1} testID={`await-card-pending-${item.id}`}>Syncing</Text>
             </>
           ) : null}
         </View>
@@ -77,7 +78,8 @@ const useStyles = makeStyles((c) => ({
   body: { flex: 1, gap: 1 },
   owner: { fontSize: 15, fontWeight: "700", color: c.onSurface },
   what: { fontSize: 13.5, color: c.onSurfaceSecondary },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  amount: { fontWeight: "800", color: c.onSurface },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2, overflow: "hidden" },
   sub: { fontSize: 12, color: c.muted },
   dot: { fontSize: 12, color: c.muted, marginHorizontal: 2 },
 }));

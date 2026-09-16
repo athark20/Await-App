@@ -7,18 +7,18 @@ import { makeStyles, useTheme } from "@/src/theme";
 export function LogoMark({ size = 64 }: { size?: number }) {
   const { colors } = useTheme();
   const s = size;
-  const stroke = s * 0.13;
+  const stroke = s * 0.17;
   const r = s / 2 - stroke;
   const c = s / 2;
   // Arc from ~40° to ~320° leaving an opening at the top-right
-  const start = polar(c, c, r, 300);
-  const end = polar(c, c, r, 40);
-  const d = `M ${start.x} ${start.y} A ${r} ${r} 0 1 0 ${end.x} ${end.y}`;
-  const dot = polar(c, c, r, 350);
+  const start = polar(c, c, r, 78);
+  const end = polar(c, c, r, 12);
+  const d = `M ${start.x} ${start.y} A ${r} ${r} 0 1 1 ${end.x} ${end.y}`;
+  const dot = polar(c, c, r * 1.02, 45);
   return (
     <Svg width={s} height={s} viewBox={`0 0 ${s} ${s}`}>
       <Path d={d} stroke={colors.brandPrimary} strokeWidth={stroke} strokeLinecap="round" fill="none" />
-      <Circle cx={dot.x} cy={dot.y} r={stroke * 0.62} fill={colors.warning} />
+      <Circle cx={dot.x} cy={dot.y} r={stroke * 0.72} fill={colors.warning} />
     </Svg>
   );
 }

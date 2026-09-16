@@ -270,6 +270,8 @@ class AwaitIn(BaseModel):
     sourceType: str = "MANUAL"
     sourceAppLabel: Optional[str] = None
     evidence: Optional[List[Dict[str, Any]]] = None
+    amount: Optional[float] = None
+    currency: str = "INR"
 
 
 class AwaitPatch(BaseModel):
@@ -279,6 +281,8 @@ class AwaitPatch(BaseModel):
     expectedText: Optional[str] = None
     category: Optional[str] = None
     notes: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
 
 
 class StateIn(BaseModel):
@@ -318,6 +322,43 @@ class FollowupSentIn(BaseModel):
 
 class ReopenIn(BaseModel):
     state: str = "THEIR_TURN"
+
+
+def money_sum(docs):
+    return round(sum(float(d.get("amount") or 0) for d in docs), 2)
+
+
+def main_currency(docs):
+    cur = [d.get("currency") for d in docs if d.get("amount")]
+    return max(set(cur), key=cur.count) if cur else "INR"
+
+
+def owner_key(name: str):
+    return " ".join((name or "").strip().lower().split())
+
+
+def owner_stats(docs):
+    """Track record for one owner from their Await docs (already out_await'ed)."""
+    open_ = [d for d in docs if d["state"] != "DONE"]
+    done = [d for d in docs if d["state"] == "DONE"]
+    on_time, late_days = 0, []
+    for d in done:
+        exp, comp = parse_dt(d.get("expectedAt")), parse_dt(d.get("completedAt"))
+        if exp and comp:
+            delta = (comp.date() - exp.date()).days
+            if delta <= 0:
+                on_time += 1
+            else:
+                late_days.append(delta)
+    judged = on_time + len(late_days)
+    last = max([parse_dt(d.get("updatedAt")) for d in docs if parse_dt(d.get("updatedAt"))] or [None])
+    return {
+        "open": len(open_), "done": len(done), "overdue": len([d for d in open_ if d["attentionState"] == "OVERDUE"]),
+        "myTurn": len([d for d in open_ if d["state"] == "MY_TURN"]),
+        "owed": money_sum(open_), "recovered": money_sum(done), "currency": main_currency(docs),
+        "onTimeRate": (round(on_time / judged, 2) if judged else None), "avgDaysLate": (round(sum(late_days) / len(late_days), 1) if late_days else 0),
+        "remindersSent": sum(int(d.get("reminderCount") or 0) for d in docs), "lastActivityAt": iso(last), "total": len(docs),
+    }
 
 
 def compute_attention(a: dict):
@@ -424,6 +465,7 @@ async def create_await(body: AwaitIn, user=Depends(get_user)):
         "sourceEvidenceIds": [], "createdAt": now(), "updatedAt": now(), "completedAt": None, "lastReminderAt": None,
         "nextReminderAt": exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
         "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
+        "amount": body.amount, "currency": (body.currency or "INR").upper()[:3],
     }
     await db.awaits.insert_one(doc)
     await add_event(doc["id"], user["user_id"], "CREATED", f"Created from {doc['sourceType'].replace('_', ' ').title()}")
@@ -441,6 +483,10 @@ async def get_await(await_id: str, user=Depends(get_user)):
 async def patch_await(await_id: str, body: AwaitPatch, user=Depends(get_user)):
     a = await get_owned(await_id, user)
     upd = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if "amount" in upd and upd["amount"] <= 0:
+        upd["amount"] = None
+    if "currency" in upd:
+        upd["currency"] = upd["currency"].upper()[:3]
     if "expectedAt" in upd:
         new_exp = parse_dt(upd["expectedAt"])
         upd["expectedAt"] = new_exp
@@ -582,6 +628,7 @@ async def stats(user=Depends(get_user)):
     overdue = [d for d in open_ if d["attentionState"] == "OVERDUE"]
     cats = {c: len([d for d in docs if d["category"] == c]) for c in CATEGORIES}
     return {"total": len(docs), "done": len(done), "waiting": len(open_), "overdue": len(overdue), "myTurn": len([d for d in open_ if d["state"] == "MY_TURN"]),
+            "owed": money_sum(open_), "recovered": money_sum(done), "currency": main_currency(docs),
             "needsReview": len([d for d in open_ if d["attentionState"] == "NEEDS_REVIEW"]), "categories": cats, "activeLimit": FREE_ACTIVE_LIMIT if user.get("plan", "FREE") == "FREE" else None}
 
 
@@ -597,7 +644,7 @@ async def recap_weekly(user=Depends(get_user)):
         return dt is not None and start <= dt <= end
 
     def brief(d):
-        return {"id": d["id"], "ownerName": d["ownerName"], "commitment": d["commitment"], "category": d["category"],
+        return {"id": d["id"], "ownerName": d["ownerName"], "commitment": d["commitment"], "category": d["category"], "amount": d.get("amount"), "currency": d.get("currency"),
                 "expectedAt": d.get("expectedAt"), "completedAt": d.get("completedAt"), "attentionState": d["attentionState"]}
 
     open_ = [d for d in docs if d["state"] != "DONE"]
@@ -612,8 +659,9 @@ async def recap_weekly(user=Depends(get_user)):
 
     owes: dict[str, dict] = {}
     for d in open_:
-        o = owes.setdefault(d["ownerName"], {"ownerName": d["ownerName"], "count": 0, "overdue": 0, "oldestExpectedAt": None, "items": []})
+        o = owes.setdefault(d["ownerName"], {"ownerName": d["ownerName"], "count": 0, "overdue": 0, "owed": 0.0, "oldestExpectedAt": None, "items": []})
         o["count"] += 1
+        o["owed"] = round(o["owed"] + float(d.get("amount") or 0), 2)
         if d["attentionState"] == "OVERDUE":
             o["overdue"] += 1
         exp = d.get("expectedAt")
@@ -621,7 +669,7 @@ async def recap_weekly(user=Depends(get_user)):
             o["oldestExpectedAt"] = exp
         if len(o["items"]) < 3:
             o["items"].append(d["commitment"])
-    top_owes = sorted(owes.values(), key=lambda o: (-o["overdue"], -o["count"], o["oldestExpectedAt"] or "9999"))[:3]
+    top_owes = sorted(owes.values(), key=lambda o: (-o["overdue"], -o["owed"], -o["count"], o["oldestExpectedAt"] or "9999"))[:3]
 
     overdue_now = len([d for d in open_ if d["attentionState"] == "OVERDUE"])
     if resolved and not slipped:
@@ -635,10 +683,40 @@ async def recap_weekly(user=Depends(get_user)):
     return {
         "weekStart": iso(start), "weekEnd": iso(end), "headline": headline,
         "counts": {"resolved": len(resolved), "slipped": len(slipped), "created": len(created), "followups": followups, "open": len(open_), "overdue": overdue_now},
+        "money": {"owed": money_sum(open_), "recovered": money_sum(resolved), "currency": main_currency(docs)},
         "resolved": [brief(d) for d in resolved[:6]],
         "slipped": [brief(d) for d in slipped[:6]],
         "owes": top_owes,
     }
+
+
+@api.get("/owners")
+async def list_owners(user=Depends(get_user)):
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(5000)]
+    groups: dict[str, list] = {}
+    for d in docs:
+        groups.setdefault(owner_key(d["ownerName"]), []).append(d)
+    out = []
+    for key, items in groups.items():
+        st = owner_stats(items)
+        out.append({"ownerName": items[0]["ownerName"], "key": key, **st, "categories": sorted({d["category"] for d in items})})
+    out.sort(key=lambda o: (-o["overdue"], -o["open"], -o["owed"], o["ownerName"].lower()))
+    return out
+
+
+@api.get("/owners/{name}")
+async def owner_profile(name: str, user=Depends(get_user)):
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(5000)]
+    items = [d for d in docs if owner_key(d["ownerName"]) == owner_key(name)]
+    if not items:
+        raise HTTPException(404, detail="Owner not found")
+    ids = [d["id"] for d in items]
+    events = await db.events.find({"user_id": user["user_id"], "awaitItemId": {"$in": ids}}, {"_id": 0}).sort("createdAt", -1).to_list(200)
+    followups = len([e for e in events if e["type"] == "FOLLOWUP_RECORDED"])
+    open_ = sorted([d for d in items if d["state"] != "DONE"], key=lambda d: d.get("expectedAt") or "9999")
+    done = sorted([d for d in items if d["state"] == "DONE"], key=lambda d: d.get("completedAt") or "", reverse=True)
+    return {"ownerName": items[0]["ownerName"], "stats": {**owner_stats(items), "followups": followups},
+            "open": open_, "done": done, "recent": [clean(e) for e in events[:12]]}
 
 
 @api.post("/reminders/tick")
@@ -675,6 +753,9 @@ async def clear_data(user=Depends(get_user)):
 
 
 # ----------------------------------------------------------------------------- Seed
+SEED_AMOUNTS = {"Refund ₹3,499": 3499.0, "Ticket refund ₹7,200": 7200.0, "Claim response": 45000.0}
+
+
 async def seed_user(user_id: str):
     n = now()
     today = n.replace(hour=18, minute=0, second=0, microsecond=0)
@@ -694,6 +775,7 @@ async def seed_user(user_id: str):
             "sourceEvidenceIds": [], "createdAt": n - timedelta(days=10), "updatedAt": n - timedelta(days=2), "completedAt": (exp + timedelta(days=2)) if state == "DONE" else None,
             "lastReminderAt": None, "nextReminderAt": exp if state != "DONE" else None, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None,
             "nextCheckAt": None, "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
+            "amount": SEED_AMOUNTS.get(what), "currency": "INR",
         }
         await db.awaits.insert_one(doc)
         await db.events.insert_one({"id": uid("evt"), "awaitItemId": doc["id"], "user_id": user_id, "type": "CREATED", "text": f"Created from {src.replace('_', ' ').title()}", "meta": {}, "createdAt": n - timedelta(days=10)})
@@ -731,6 +813,8 @@ what (short imperative commitment, e.g. 'Send quotation', 'Refund ₹3,499'),
 expected_text (human phrase like 'Friday' or 'within 7–10 business days', or null),
 expected_at (ISO 8601 date computed from today's date given, or null when not determinable),
 category (one of DELIVERY, REFUND, DOCUMENT, APPOINTMENT, PAYMENT, OTHER),
+amount (number, the money value involved if any e.g. 3499 for '₹3,499', else null),
+currency (ISO 4217 code like INR, USD when an amount is present, else null),
 suggested_state (THEIR_TURN when someone else owes the action, MY_TURN when the user owes it),
 completion_signal (true if the content says the commitment has already been fulfilled/processed/delivered/resolved),
 confidence (0..1 how confident you are in who+what+expected).
@@ -868,6 +952,8 @@ async def ai_extract(body: ExtractIn, user=Depends(get_user)):
             "category": data.get("category") if data.get("category") in CATEGORIES else "OTHER",
             "suggested_state": data.get("suggested_state") if data.get("suggested_state") in ("MY_TURN", "THEIR_TURN") else "THEIR_TURN",
             "completion_signal": bool(data.get("completion_signal")), "confidence": conf,
+            "amount": (float(data["amount"]) if isinstance(data.get("amount"), (int, float)) and data["amount"] > 0 else None),
+            "currency": (str(data.get("currency") or "INR").upper()[:3]),
         } if ok else None,
         "match": None,
     }

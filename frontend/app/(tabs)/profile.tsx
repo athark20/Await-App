@@ -49,6 +49,7 @@ export default function Profile() {
           <ListRow testID="profile-preferences-row" icon="options-outline" title="Preferences" subtitle="Appearance, snooze, date format" onPress={() => router.push("/settings/preferences")} />
           <ListRow testID="profile-privacy-row" icon="shield-checkmark-outline" title="Privacy & Security" subtitle="App lock, your data" onPress={() => router.push("/settings/privacy")} />
           <ListRow testID="profile-progress-row" icon="stats-chart-outline" tone="success" title="My Progress" subtitle={stats.data ? `${stats.data.total} total · ${stats.data.done} done` : "Stats and category breakdown"} onPress={() => router.push("/stats")} />
+          <ListRow testID="profile-owners-row" icon="people-outline" title="People & Companies" subtitle="Who owes you, with their track record" onPress={() => router.push("/owners")} />
           <ListRow testID="profile-recap-row" icon="sparkles-outline" tone="warning" title="Weekly Recap" subtitle="Resolved, slipped, who owes you most" onPress={() => router.push("/recap")} />
           <ListRow testID="profile-history-row" icon="time-outline" tone="purple" title="History" subtitle="Completed Awaits" onPress={() => router.push("/history")} />
           <ListRow testID="profile-help-row" icon="help-circle-outline" title="Help & Support" onPress={() => router.push("/settings/help")} last />

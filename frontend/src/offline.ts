@@ -150,6 +150,8 @@ export async function queueCreate(body: any): Promise<AwaitItem> {
     nextCheckAt: null,
     resolutionConfidence: null,
     resolutionEvidenceId: null,
+    amount: body.amount ?? null,
+    currency: body.currency ?? "INR",
     pending: true,
   };
   cache[`/awaits/${localId}`] = item;

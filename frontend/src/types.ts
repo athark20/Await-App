@@ -29,6 +29,8 @@ export interface AwaitItem {
   nextCheckAt: string | null;
   resolutionConfidence: number | null;
   resolutionEvidenceId: string | null;
+  amount?: number | null;
+  currency?: string | null;
   /** Set on items created/edited offline and not yet synced. */
   pending?: boolean;
 }
@@ -61,6 +63,8 @@ export interface Extraction {
   suggested_state: "MY_TURN" | "THEIR_TURN";
   completion_signal: boolean;
   confidence: number;
+  amount?: number | null;
+  currency?: string | null;
 }
 
 export interface MatchResult {

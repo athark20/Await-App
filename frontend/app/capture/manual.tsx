@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { makeStyles, spacing } from "@/src/theme";
 import { Button, ScreenHeader } from "@/src/components/ui";
-import { AwaitForm, emptyForm, type AwaitFormValue } from "@/src/components/AwaitForm";
+import { AwaitForm, amountPayload, emptyForm, type AwaitFormValue } from "@/src/components/AwaitForm";
 import { api } from "@/src/api";
 import { useInvalidateAwaits } from "@/src/hooks";
 import { useToast } from "@/src/components/Toast";
@@ -38,6 +38,7 @@ export default function Manual() {
           state: form.state,
           category: form.category,
           notes: form.notes,
+          ...amountPayload(form),
           sourceType: pending?.sourceType ?? "MANUAL",
           sourceAppLabel: pending?.items?.[0]?.appLabel ?? null,
           evidence: pending ? itemsToEvidence(pending.items) : [],

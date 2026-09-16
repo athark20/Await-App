@@ -7,7 +7,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Button, Field, Icon } from "@/src/components/ui";
 import { LogoMark } from "@/src/components/Logo";
-import { AuthBackdrop, GoogleButton } from "@/src/components/AuthBackdrop";
+import { AuthBackdrop, AuthHeader, GoogleButton } from "@/src/components/AuthBackdrop";
 import { useAuth } from "@/src/auth";
 import { useToast } from "@/src/components/Toast";
 
@@ -51,11 +51,7 @@ export default function Login() {
   return (
     <AuthBackdrop dim={0.3}>
       <View style={[styles.root, { paddingTop: insets.top }]} testID="login-screen">
-        <View style={styles.header}>
-          <Pressable testID="login-back-button" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(auth)/welcome"))} style={styles.back} hitSlop={8}>
-            <Icon name="arrow-back" size={22} color={colors.onWallpaper} />
-          </Pressable>
-        </View>
+        <AuthHeader testID="login-back-button" />
         <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} bottomOffset={24} keyboardShouldPersistTaps="handled">
           <Animated.View entering={FadeInDown.duration(500)} style={styles.brand}>
             <View style={styles.badge}>
@@ -82,7 +78,7 @@ export default function Login() {
                 <Text style={styles.error}>{error}</Text>
               </View>
             ) : null}
-            <Button title="Sign In" icon="log-in-outline" onPress={submit} loading={busy === "email"} testID="login-submit-button" />
+            <Button title="Sign In" icon="log-in-outline" onPress={submit} loading={busy === "email"} testID="login-submit-button" style={{ height: 46 }} />
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(240).duration(500)} style={{ gap: 14 }}>
@@ -106,8 +102,6 @@ export default function Login() {
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1 },
-  header: { height: 52, paddingHorizontal: spacing.md, justifyContent: "center" },
-  back: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
   content: { paddingHorizontal: spacing.xl, gap: 20, paddingTop: 12 },
   brand: { alignItems: "center", gap: 6, marginBottom: 4 },
   badge: { width: 64, height: 64, borderRadius: 20, backgroundColor: c.glass, borderWidth: 1, borderColor: c.glassBorder, alignItems: "center", justifyContent: "center", marginBottom: 8 },

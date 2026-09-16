@@ -31,9 +31,10 @@ export interface WeeklyRecap {
   weekEnd: string;
   headline: string;
   counts: { resolved: number; slipped: number; created: number; followups: number; open: number; overdue: number };
+  money: { owed: number; recovered: number; currency: string };
   resolved: RecapItem[];
   slipped: RecapItem[];
-  owes: { ownerName: string; count: number; overdue: number; oldestExpectedAt: string | null; items: string[] }[];
+  owes: { ownerName: string; count: number; overdue: number; owed: number; oldestExpectedAt: string | null; items: string[] }[];
 }
 
 export function useAwaits(params: Record<string, string | undefined> = {}) {

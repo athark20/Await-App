@@ -63,5 +63,11 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - Offline saving (`src/offline.ts` + `api.ts`): GET responses cached (AsyncStorage), Await create/PATCH/state/snooze/reopen queued in an outbox with optimistic local items (`local_*` ids, `pending` flag, "Syncing" label on cards, banner on details), auto-flush when connectivity returns (health poll + AppState), local→server id remapping. Other actions surface an OfflineError.
 - Home: summary strip (Overdue / Due today / Waiting / Review); AwaitCard meta row (date · turn · syncing).
 
+## Implemented (2026-06) — Iteration 5
+- Brand alignment: logo mark geometry matches supplied brand sheet (thick loop, top-right gap, amber dot); Welcome uses "FOLLOW UP. CLOSE THE LOOP." kicker + "Less mental load. More life." headline (no em dashes); auth buttons 46px.
+- Wallpaper look extended to Create-account and Forgot-password (`AuthBackdrop` + `AuthHeader`; Google sign-up on register).
+- Amount field: `amount`/`currency` on Awaits (create/PATCH, form field with currency cycler, AI extraction returns amount/currency, seed amounts). Shown on cards/hero (deduped when the commitment text already contains it), "₹X still owed to you" on Home, owed/recovered on Recap and per-owner; `/stats` returns owed/recovered. ⋮ menu → Add/Edit amount.
+- Owner profiles: `GET /api/owners`, `GET /api/owners/{name}` (on-time rate, avg days late, owed/recovered, reminders/follow-ups, open + history + recent activity). Screens `app/owners.tsx` (Profile → People & Companies) and `app/owner/[name].tsx` (from item owner link and Recap "who owes you most").
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

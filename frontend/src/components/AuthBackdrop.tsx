@@ -1,8 +1,10 @@
 import React from "react";
 import { ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useTheme } from "@/src/theme";
 import { GoogleG } from "@/src/components/GoogleG";
+import { Icon } from "@/src/components/ui";
 
 const wallpaper = require("../../assets/images/auth-wallpaper.png");
 
@@ -19,6 +21,19 @@ export function AuthBackdrop({ children, dim = 0 }: { children: React.ReactNode;
       />
       {children}
     </ImageBackground>
+  );
+}
+
+/** Light back-arrow header for wallpaper screens. */
+export function AuthHeader({ fallback = "/(auth)/welcome", testID }: { fallback?: string; testID: string }) {
+  const router = useRouter();
+  const { colors } = useTheme();
+  return (
+    <View style={styles.header}>
+      <Pressable testID={testID} onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback as any))} style={styles.back} hitSlop={8}>
+        <Icon name="arrow-back" size={22} color={colors.onWallpaper} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -43,7 +58,9 @@ export function GoogleButton({ onPress, busy, label = "Continue with Google", te
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   fill100: { width: "100%", height: "100%" },
-  btn: { height: 52, borderRadius: 14, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
+  header: { height: 52, paddingHorizontal: 12, justifyContent: "center" },
+  back: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
+  btn: { height: 46, borderRadius: 14, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
   g: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 15.5, fontWeight: "600", letterSpacing: 0.1 },
+  label: { fontSize: 14.5, fontWeight: "600", letterSpacing: 0.1 },
 });

@@ -7,9 +7,9 @@ import { makeStyles, spacing, useTheme } from "@/src/theme";
 import { Chips, EmptyState, Icon, SectionTitle } from "@/src/components/ui";
 import { AwaitCard } from "@/src/components/AwaitCard";
 import { ErrorRetry, OfflineBanner } from "@/src/components/common";
-import { useAwaits } from "@/src/hooks";
+import { useAwaits, useStats } from "@/src/hooks";
 import { useAuth } from "@/src/auth";
-import { greeting } from "@/src/format";
+import { greeting, money } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
 import { scheduleDailySummary, scheduleReminder, scheduleWeeklyRecap } from "@/src/notifications";
 import { api } from "@/src/api";
@@ -27,6 +27,9 @@ export default function Home() {
   const { prefs } = usePrefs();
   const [filter, setFilter] = useState<Filter>("ALL");
   const q = useAwaits({ include_done: "false" });
+  const stats = useStats();
+  const owed = (stats.data as any)?.owed as number | undefined;
+  const currency = (stats.data as any)?.currency as string | undefined;
   const items = useMemo(() => q.data ?? [], [q.data]);
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
@@ -71,7 +74,7 @@ export default function Home() {
             <Text style={styles.greeting} testID="home-greeting">
               {greeting()}, {firstName} 👋
             </Text>
-            <Text style={styles.sub}>Here’s what you’re waiting for.</Text>
+            <Text style={styles.sub} testID="home-owed-line">{owed ? `${money(owed, currency)} still owed to you.` : "Here’s what you’re waiting for."}</Text>
           </View>
           <Pressable testID="home-profile-avatar" onPress={() => router.push("/(tabs)/profile")} style={styles.avatar}>
             <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>

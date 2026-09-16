@@ -6,6 +6,7 @@ import { makeStyles, radius, useTheme } from "@/src/theme";
 import { Field, Icon, StateSelector } from "@/src/components/ui";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
 import { parseExpectedPhrase } from "@/src/dates";
+import { CURRENCIES, currencySymbol, money } from "@/src/format";
 
 export interface AwaitFormValue {
   who: string;
@@ -15,10 +16,18 @@ export interface AwaitFormValue {
   category: Category;
   state: "MY_TURN" | "THEIR_TURN";
   notes: string;
+  amount: string; // raw digits typed by the user; "" = no amount
+  currency: string;
 }
 
 export function emptyForm(): AwaitFormValue {
-  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "" };
+  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "", amount: "", currency: "INR" };
+}
+
+/** Body fields for POST/PATCH /awaits derived from the form's amount + currency. */
+export function amountPayload(v: AwaitFormValue) {
+  const n = parseFloat(v.amount.replace(/[^0-9.]/g, ""));
+  return { amount: Number.isFinite(n) && n > 0 ? n : null, currency: v.currency || "INR" };
 }
 
 function nextWeekday(day: number) {
@@ -75,6 +84,21 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
     <View style={{ gap: 16 }}>
       <Field label="Who" placeholder="e.g. Amazon, Sameer" value={value.who} onChangeText={(who) => set({ who })} testID="form-who-input" />
       <Field label="What" placeholder="e.g. Refund ₹3,499, Send quotation" value={value.what} onChangeText={(what) => set({ what })} testID="form-what-input" />
+      <View style={styles.dateRow}>
+        <Pressable testID="form-currency-button" onPress={() => set({ currency: CURRENCIES[(CURRENCIES.indexOf(value.currency) + 1) % CURRENCIES.length] })} style={styles.calBtn}>
+          <Text style={styles.currency}>{currencySymbol(value.currency)}</Text>
+        </Pressable>
+        <Field
+          label="Amount (optional)"
+          placeholder="e.g. 3499"
+          value={value.amount}
+          onChangeText={(t) => set({ amount: t.replace(/[^0-9.]/g, "") })}
+          keyboardType="decimal-pad"
+          hint={value.amount ? `${money(parseFloat(value.amount) || 0, value.currency)} · tap the symbol to change currency` : "Money involved, if any — shows up in totals owed"}
+          testID="form-amount-input"
+          style={{ flex: 1 }}
+        />
+      </View>
       <View style={{ gap: 6 }}>
         <View style={styles.dateRow}>
           <Field
@@ -152,6 +176,7 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
 const useStyles = makeStyles((c) => ({
   label: { fontSize: 13, fontWeight: "600", color: c.onSurfaceTertiary },
   dateRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  currency: { fontSize: 18, fontWeight: "800", color: c.brandPrimary },
   calBtn: { width: 50, height: 50, marginTop: 25, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   webPickerNote: { fontSize: 12, color: c.muted },
   quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

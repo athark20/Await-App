@@ -111,6 +111,8 @@ function Gate() {
           <Stack.Screen name="history" />
           <Stack.Screen name="stats" />
           <Stack.Screen name="recap" />
+          <Stack.Screen name="owners" />
+          <Stack.Screen name="owner/[name]" />
           <Stack.Screen name="settings/notifications" />
           <Stack.Screen name="settings/preferences" />
           <Stack.Screen name="settings/privacy" />

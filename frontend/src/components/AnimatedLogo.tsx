@@ -15,14 +15,14 @@ function polar(cx: number, cy: number, r: number, deg: number) {
 /** Brand motion: the open loop draws itself, then the amber dot pops in and keeps a gentle pulse. */
 export function AnimatedLogoMark({ size = 72 }: { size?: number }) {
   const { colors } = useTheme();
-  const stroke = size * 0.13;
+  const stroke = size * 0.17;
   const r = size / 2 - stroke;
   const c = size / 2;
-  const start = polar(c, c, r, 300);
-  const end = polar(c, c, r, 40);
-  const d = `M ${start.x} ${start.y} A ${r} ${r} 0 1 0 ${end.x} ${end.y}`;
-  const dot = polar(c, c, r, 350);
-  const length = 2 * Math.PI * r * (260 / 360) + stroke;
+  const start = polar(c, c, r, 78);
+  const end = polar(c, c, r, 12);
+  const d = `M ${start.x} ${start.y} A ${r} ${r} 0 1 1 ${end.x} ${end.y}`;
+  const dot = polar(c, c, r * 1.02, 45);
+  const length = 2 * Math.PI * r * (294 / 360) + stroke;
 
   const progress = useSharedValue(0);
   const dotScale = useSharedValue(0);
@@ -40,7 +40,7 @@ export function AnimatedLogoMark({ size = 72 }: { size?: number }) {
   }, [progress, dotScale]);
 
   const pathProps = useAnimatedProps(() => ({ strokeDashoffset: length * (1 - progress.value) }));
-  const dotProps = useAnimatedProps(() => ({ r: stroke * 0.62 * dotScale.value }));
+  const dotProps = useAnimatedProps(() => ({ r: stroke * 0.72 * dotScale.value }));
 
   return (
     <View style={{ width: size, height: size }} testID="animated-logo">

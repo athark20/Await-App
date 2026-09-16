@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { makeStyles, radius, spacing } from "@/src/theme";
 import { Button, IconBox, ScreenHeader, Pill } from "@/src/components/ui";
-import { AwaitForm, emptyForm, type AwaitFormValue } from "@/src/components/AwaitForm";
+import { AwaitForm, amountPayload, emptyForm, type AwaitFormValue } from "@/src/components/AwaitForm";
 import { captureStore, itemsToEvidence } from "@/src/capture-store";
 import { analyzeCurrent } from "@/src/analyze";
 import { api } from "@/src/api";
@@ -28,7 +28,7 @@ export default function Confirm() {
   const ex = payload?.extraction;
   const [form, setForm] = useState<AwaitFormValue>(() =>
     ex
-      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "" }
+      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "", amount: ex.amount ? String(ex.amount) : "", currency: ex.currency ?? "INR" }
       : emptyForm(),
   );
   const [saving, setSaving] = useState(false);
@@ -51,6 +51,7 @@ export default function Confirm() {
           state: form.state,
           category: form.category,
           notes: form.notes,
+          ...amountPayload(form),
           sourceType: payload?.sourceType ?? "MANUAL",
           sourceAppLabel: first?.appLabel ?? null,
           evidence: itemsToEvidence(items),
