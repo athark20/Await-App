@@ -272,6 +272,7 @@ class AwaitIn(BaseModel):
     evidence: Optional[List[Dict[str, Any]]] = None
     amount: Optional[float] = None
     currency: str = "INR"
+    reminderLeadDays: int = 0  # remind this many days BEFORE the expected date (tighter reminders for late owners)
 
 
 class AwaitPatch(BaseModel):
@@ -318,6 +319,10 @@ class UpdateApplyIn(BaseModel):
 class FollowupSentIn(BaseModel):
     checkDays: int = 3
     text: Optional[str] = None
+
+
+class FollowupIn(BaseModel):
+    tone: str = "Polite"
 
 
 class ReopenIn(BaseModel):
@@ -463,12 +468,14 @@ async def create_await(body: AwaitIn, user=Depends(get_user)):
         "attentionState": "NORMAL", "category": body.category if body.category in CATEGORIES else "OTHER", "notes": body.notes or "",
         "sourceType": body.sourceType if body.sourceType in SOURCE_TYPES else "MANUAL", "sourceAppLabel": body.sourceAppLabel,
         "sourceEvidenceIds": [], "createdAt": now(), "updatedAt": now(), "completedAt": None, "lastReminderAt": None,
-        "nextReminderAt": exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
+        "nextReminderAt": (exp - timedelta(days=body.reminderLeadDays)) if exp and body.reminderLeadDays > 0 else exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
         "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
         "amount": body.amount, "currency": (body.currency or "INR").upper()[:3],
     }
     await db.awaits.insert_one(doc)
     await add_event(doc["id"], user["user_id"], "CREATED", f"Created from {doc['sourceType'].replace('_', ' ').title()}")
+    if exp and body.reminderLeadDays > 0:
+        await add_event(doc["id"], user["user_id"], "REMINDER_SCHEDULED", f"Early reminder set · {body.reminderLeadDays} days before the promised date")
     for ev in body.evidence or []:
         await add_evidence(doc["id"], user["user_id"], ev)
     return out_await(await db.awaits.find_one({"id": doc["id"]}, {"_id": 0}))
@@ -719,6 +726,82 @@ async def owner_profile(name: str, user=Depends(get_user)):
             "open": open_, "done": done, "recent": [clean(e) for e in events[:12]]}
 
 
+async def owner_open_items(name: str, user: dict):
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None, "state": {"$ne": "DONE"}}, {"_id": 0}).to_list(5000)]
+    items = [d for d in docs if owner_key(d["ownerName"]) == owner_key(name)]
+    if not items:
+        raise HTTPException(404, detail="Nothing open with this owner")
+    return items
+
+
+def plain_dashes(text: str) -> str:
+    """House style: no em/en dashes in drafts."""
+    return text.replace(" — ", ", ").replace(" – ", ", ").replace("—", "-").replace("–", "-").strip()
+
+
+def fmt_money(amount, currency):
+    if not amount:
+        return ""
+    sym = {"INR": "₹", "USD": "$", "EUR": "€", "GBP": "£"}.get((currency or "INR").upper(), f"{(currency or '').upper()} ")
+    return f"{sym}{amount:,.0f}" if float(amount).is_integer() else f"{sym}{amount:,.2f}"
+
+
+@api.post("/owners/{name}/followup-draft")
+async def owner_followup_draft(name: str, body: FollowupIn, user=Depends(get_user)):
+    """One follow-up message covering everything this owner still owes (money or not)."""
+    items = await owner_open_items(name, user)
+    if user.get("plan", "FREE") == "FREE" and user.get("ai_followups_used", 0) >= FREE_AI_FOLLOWUPS:
+        raise HTTPException(402, detail={"code": "AI_LIMIT", "limit": FREE_AI_FOLLOWUPS})
+    lines = []
+    for d in sorted(items, key=lambda d: d.get("expectedAt") or "9999"):
+        exp = parse_dt(d.get("expectedAt"))
+        late = (now().date() - exp.date()).days if exp else None
+        lines.append(f"- {d['commitment']}" + (f" ({fmt_money(d.get('amount'), d.get('currency'))})" if d.get("amount") else "")
+                     + (f", expected {exp.strftime('%b %d')}" if exp else "") + (f", {late} days late" if late and late > 0 else ""))
+    prompt = (f"Write a short {body.tone.lower()} follow-up message from {user.get('name', 'me')} to {items[0]['ownerName']} that covers ALL of these outstanding items in one message:\n"
+              + "\n".join(lines) + f"\nInclude EXACTLY these {len(items)} item(s) and nothing else — never invent items, amounts or dates. List each briefly (bullets are fine), mention amounts and dates only where given above, ask them to confirm status or a new date for each. "
+              f"Plain text, greeting + short intro + the list + one closing sentence + sign-off with the name {user.get('name', '')}. No subject line.")
+    try:
+        draft = await llm("You draft concise follow-up messages. Output only the message text.", prompt, "openai")
+    except Exception:
+        draft = await llm("You draft concise follow-up messages. Output only the message text.", prompt, "gemini")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"ai_followups_used": 1}})
+    for d in items:
+        await add_event(d["id"], user["user_id"], "FOLLOWUP_DRAFTED", f"Combined follow-up drafted ({body.tone}) · {len(items)} items")
+    return {"draft": plain_dashes(draft), "tone": body.tone, "items": [d["id"] for d in items]}
+
+
+@api.post("/owners/{name}/followup-sent")
+async def owner_followup_sent(name: str, body: FollowupSentIn, user=Depends(get_user)):
+    items = await owner_open_items(name, user)
+    out = []
+    for d in items:
+        out.append(await followup_sent(d["id"], body, user))
+    return {"updated": len(out), "items": out}
+
+
+@api.get("/stats/monthly")
+async def stats_monthly(user=Depends(get_user), months: int = 6):
+    """Per-month opened vs closed (counts) and owed vs recovered (amounts) for the last N months."""
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(5000)]
+    today = now().date().replace(day=1)
+    buckets = []
+    y, m = today.year, today.month
+    for _ in range(months):
+        buckets.append((y, m))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    buckets.reverse()
+    out = []
+    for (y, m) in buckets:
+        created = [d for d in docs if (c := parse_dt(d.get("createdAt"))) and (c.year, c.month) == (y, m)]
+        closed = [d for d in docs if d["state"] == "DONE" and (c := parse_dt(d.get("completedAt"))) and (c.year, c.month) == (y, m)]
+        out.append({"month": f"{y}-{m:02d}", "label": datetime(y, m, 1).strftime("%b"), "opened": len(created), "closed": len(closed),
+                    "owed": money_sum(created), "recovered": money_sum(closed)})
+    return {"months": out, "currency": main_currency(docs)}
+
+
 @api.post("/reminders/tick")
 async def reminders_tick(user=Depends(get_user)):
     """Reminder engine: returns due reminders and escalates ignored ones to NEEDS_REVIEW."""
@@ -795,10 +878,6 @@ class ExtractIn(BaseModel):
     source_type: str = "SHARED_TEXT"
     url: Optional[str] = None
     provider: Optional[str] = None  # openai | gemini
-
-
-class FollowupIn(BaseModel):
-    tone: str = "Polite"
 
 
 class TranscribeIn(BaseModel):
@@ -994,7 +1073,7 @@ async def followup_draft(await_id: str, body: FollowupIn, user=Depends(get_user)
         draft = await llm("You draft concise follow-up messages. Output only the message text.", prompt, "gemini")
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"ai_followups_used": 1}})
     await add_event(await_id, user["user_id"], "FOLLOWUP_DRAFTED", f"Follow-up drafted ({body.tone})")
-    return {"draft": draft.strip(), "tone": body.tone}
+    return {"draft": plain_dashes(draft), "tone": body.tone}
 
 
 @api.post("/ai/transcribe")

@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
-import { Icon, IconBox, Pill, ScreenHeader, SectionTitle } from "@/src/components/ui";
+import { Button, Icon, IconBox, Pill, ScreenHeader, SectionTitle } from "@/src/components/ui";
+import { OWNER_PREFIX } from "@/app/followup/[id]";
 import { AwaitCard } from "@/src/components/AwaitCard";
 import { Ring } from "@/src/components/Ring";
 import { ErrorRetry } from "@/src/components/common";
@@ -84,6 +85,15 @@ export default function OwnerProfileScreen() {
                 <Tile label="Overdue" value={String(p.stats.overdue)} color={p.stats.overdue ? colors.error : colors.muted} />
                 <Tile label="Avg. late" value={p.stats.avgDaysLate ? `${p.stats.avgDaysLate}d` : "0d"} color={colors.warning} />
               </View>
+              {p.open.length > 0 ? (
+                <Button
+                  title={p.open.length === 1 ? "Follow up" : `Follow up on all ${p.open.length}`}
+                  icon="chatbubbles-outline"
+                  onPress={() => router.push(`/followup/${OWNER_PREFIX}${encodeURIComponent(p.ownerName)}`)}
+                  testID="owner-bulk-followup-button"
+                  style={{ height: 46 }}
+                />
+              ) : null}
               <Text style={styles.meta}>
                 {p.stats.remindersSent} {p.stats.remindersSent === 1 ? "reminder" : "reminders"} sent · {p.stats.followups} {p.stats.followups === 1 ? "follow-up" : "follow-ups"}
               </Text>

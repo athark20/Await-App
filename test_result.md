@@ -107,3 +107,6 @@ needs_retesting: all of the above. Self-tested: recap endpoint via curl, offline
 
 ## Iteration 5 (main agent)
 Implemented: wallpaper on register/forgot (+AuthHeader), brand headline on welcome, smaller auth buttons, logo geometry; amount/currency field end-to-end (form, POST/PATCH, cards, hero, Home owed line, recap money, stats owed/recovered, edit-amount sheet); owners endpoints + owners list + owner profile screens. needs_retesting: all.
+
+## Iteration 6 (main agent)
+Implemented: owner bulk follow-up (draft + sent endpoints, followup screen owner mode, owner page button), reliability alert + reminderLeadDays in AwaitForm/create, GET /stats/monthly + MonthlyChart on My Progress, dash-free AI drafts. needs_retesting: all.

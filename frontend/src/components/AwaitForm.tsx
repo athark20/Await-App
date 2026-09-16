@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import dayjs from "dayjs";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
@@ -7,6 +7,8 @@ import { Field, Icon, StateSelector } from "@/src/components/ui";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
 import { parseExpectedPhrase } from "@/src/dates";
 import { CURRENCIES, currencySymbol, money } from "@/src/format";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/src/api";
 
 export interface AwaitFormValue {
   who: string;
@@ -18,16 +20,59 @@ export interface AwaitFormValue {
   notes: string;
   amount: string; // raw digits typed by the user; "" = no amount
   currency: string;
+  reminderLeadDays: number; // >0 = remind this many days before the promised date
 }
 
 export function emptyForm(): AwaitFormValue {
-  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "", amount: "", currency: "INR" };
+  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "", amount: "", currency: "INR", reminderLeadDays: 0 };
 }
 
 /** Body fields for POST/PATCH /awaits derived from the form's amount + currency. */
 export function amountPayload(v: AwaitFormValue) {
   const n = parseFloat(v.amount.replace(/[^0-9.]/g, ""));
-  return { amount: Number.isFinite(n) && n > 0 ? n : null, currency: v.currency || "INR" };
+  return { amount: Number.isFinite(n) && n > 0 ? n : null, currency: v.currency || "INR", reminderLeadDays: v.reminderLeadDays || 0 };
+}
+
+type OwnerRow = { ownerName: string; key: string; open: number; overdue: number; done: number; onTimeRate: number | null; avgDaysLate: number };
+
+/** Owner Reliability Alert: warn when "who" matches someone with a poor track record and offer a tighter reminder. */
+function ReliabilityAlert({ who, lead, onLead }: { who: string; lead: number; onLead: (d: number) => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const owners = useQuery({ queryKey: ["owners"], queryFn: () => api<OwnerRow[]>("/owners"), staleTime: 60_000 });
+  const autoRef = useRef<string | null>(null);
+  const key = who.trim().toLowerCase().replace(/\s+/g, " ");
+  const o = key.length >= 2 ? owners.data?.find((r) => r.key === key) : undefined;
+  const often = !!o && ((o.onTimeRate !== null && o.onTimeRate < 0.5) || o.overdue > 0);
+  const suggested = o ? Math.min(7, Math.max(2, Math.round(o.avgDaysLate || 2))) : 0;
+  // Suggest the tighter reminder by default (once per matched owner); the user can still pick "Remind on the date".
+  useEffect(() => {
+    if (o && often && lead === 0 && autoRef.current !== o.key) {
+      autoRef.current = o.key;
+      onLead(suggested);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [o?.key, often]);
+  if (!o || !often) return null;
+  const detail = o.onTimeRate !== null && o.onTimeRate < 0.5 ? `on time only ${Math.round(o.onTimeRate * 100)}% of the time${o.avgDaysLate ? `, ${o.avgDaysLate} days late on average` : ""}` : `${o.overdue} item${o.overdue === 1 ? "" : "s"} already overdue with you`;
+  return (
+    <View style={styles.alert} testID="form-reliability-alert">
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+        <Icon name="warning-outline" size={18} color={colors.warning} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.alertTitle}>{o.ownerName} is often late</Text>
+          <Text style={styles.alertText}>They’ve been {detail}. A nudge before the date gives you time to chase.</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        {[0, suggested, suggested + 3].filter((d, i, a) => a.indexOf(d) === i).map((d) => (
+          <Pressable key={d} testID={`form-lead-${d}`} onPress={() => onLead(d)} style={[styles.leadChip, lead === d && styles.leadChipSel]}>
+            <Text style={[styles.leadText, lead === d && { color: colors.onBrandPrimary }]}>{d === 0 ? "Remind on the date" : `${d} days early`}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 function nextWeekday(day: number) {
@@ -83,6 +128,7 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
   return (
     <View style={{ gap: 16 }}>
       <Field label="Who" placeholder="e.g. Amazon, Sameer" value={value.who} onChangeText={(who) => set({ who })} testID="form-who-input" />
+      <ReliabilityAlert who={value.who} lead={value.reminderLeadDays} onLead={(d) => set({ reminderLeadDays: d })} />
       <Field label="What" placeholder="e.g. Refund ₹3,499, Send quotation" value={value.what} onChangeText={(what) => set({ what })} testID="form-what-input" />
       <View style={styles.dateRow}>
         <Pressable testID="form-currency-button" onPress={() => set({ currency: CURRENCIES[(CURRENCIES.indexOf(value.currency) + 1) % CURRENCIES.length] })} style={styles.calBtn}>
@@ -176,6 +222,12 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
 const useStyles = makeStyles((c) => ({
   label: { fontSize: 13, fontWeight: "600", color: c.onSurfaceTertiary },
   dateRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  alert: { backgroundColor: c.warningTint, borderRadius: radius.md, padding: 12, gap: 10, marginTop: -6 },
+  alertTitle: { fontSize: 14, fontWeight: "700", color: c.onSurface },
+  alertText: { fontSize: 12.5, color: c.onSurfaceSecondary, marginTop: 2, lineHeight: 17 },
+  leadChip: { paddingHorizontal: 12, height: 32, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, justifyContent: "center" },
+  leadChipSel: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
+  leadText: { fontSize: 12.5, fontWeight: "600", color: c.onSurface },
   currency: { fontSize: 18, fontWeight: "800", color: c.brandPrimary },
   calBtn: { width: 50, height: 50, marginTop: 25, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   webPickerNote: { fontSize: 12, color: c.muted },

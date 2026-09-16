@@ -69,5 +69,11 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - Amount field: `amount`/`currency` on Awaits (create/PATCH, form field with currency cycler, AI extraction returns amount/currency, seed amounts). Shown on cards/hero (deduped when the commitment text already contains it), "₹X still owed to you" on Home, owed/recovered on Recap and per-owner; `/stats` returns owed/recovered. ⋮ menu → Add/Edit amount.
 - Owner profiles: `GET /api/owners`, `GET /api/owners/{name}` (on-time rate, avg days late, owed/recovered, reminders/follow-ups, open + history + recent activity). Screens `app/owners.tsx` (Profile → People & Companies) and `app/owner/[name].tsx` (from item owner link and Recap "who owes you most").
 
+## Implemented (2026-06) — Iteration 6
+- Bulk follow-up per owner: `POST /api/owners/{name}/followup-draft` (one AI message covering every open item, money or not; strict "no invented items", no em dashes) + `POST /api/owners/{name}/followup-sent` (records follow-up on all). Owner page → "Follow up on all N" → `/followup/owner__<name>` (same Follow Up screen in owner mode with item list).
+- Owner Reliability Alerts: AwaitForm shows a warning when "Who" matches an owner who is often late/overdue, auto-suggests "N days early" reminder chips; `reminderLeadDays` on create sets `nextReminderAt` before the promised date (+ timeline event).
+- My Progress: `GET /api/stats/monthly` + `MonthlyChart` (last 6 months, Awaits opened vs closed by default, Money owed vs recovered toggle). Donut `origin` prop replaced with transform (web warning fix).
+- Home/Add/Profile fidelity pass pending user's reference screenshots (not yet shared).
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

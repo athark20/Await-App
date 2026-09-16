@@ -28,7 +28,7 @@ export default function Confirm() {
   const ex = payload?.extraction;
   const [form, setForm] = useState<AwaitFormValue>(() =>
     ex
-      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "", amount: ex.amount ? String(ex.amount) : "", currency: ex.currency ?? "INR" }
+      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "", amount: ex.amount ? String(ex.amount) : "", currency: ex.currency ?? "INR", reminderLeadDays: 0 }
       : emptyForm(),
   );
   const [saving, setSaving] = useState(false);

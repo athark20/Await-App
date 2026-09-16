@@ -5,6 +5,7 @@ import Svg, { Circle } from "react-native-svg";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { ScreenHeader, IconBox } from "@/src/components/ui";
 import { useStats } from "@/src/hooks";
+import { MonthlyChart } from "@/src/components/MonthlyChart";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
 import { categoryIcon } from "@/src/format";
 import { CATEGORY_TONE } from "@/src/components/AwaitCard";
@@ -40,7 +41,7 @@ export default function Stats() {
                     <Circle cx={66} cy={66} r={R} stroke={colors.surfaceTertiary} strokeWidth={14} fill="none" />
                     {segs.map((seg, i) => {
                       const len = total ? (seg.v / total) * C : 0;
-                      const el = <Circle key={i} cx={66} cy={66} r={R} stroke={seg.color} strokeWidth={14} fill="none" strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset} rotation={-90} origin="66,66" strokeLinecap="butt" />;
+                      const el = <Circle key={i} cx={66} cy={66} r={R} stroke={seg.color} strokeWidth={14} fill="none" strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset} transform="rotate(-90 66 66)" strokeLinecap="butt" />;
                       offset += len;
                       return el;
                     })}
@@ -64,6 +65,7 @@ export default function Stats() {
               {s.activeLimit ? <Tile label="Free limit" value={`${s.waiting}/${s.activeLimit}`} /> : <Tile label="Plan" value="Pro" />}
             </View>
 
+            <MonthlyChart />
             <Text style={styles.section}>Category breakdown</Text>
             <View style={styles.card}>
               {CATEGORIES.map((c: Category, i) => {

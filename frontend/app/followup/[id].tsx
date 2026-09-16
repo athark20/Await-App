@@ -6,7 +6,10 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Button, Chips, IconBox, ScreenHeader } from "@/src/components/ui";
 import { Sheet } from "@/src/components/Sheet";
-import { useAwait, useAwaitAction } from "@/src/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { useAwait, useAwaitAction, useInvalidateAwaits } from "@/src/hooks";
+import type { AwaitItem } from "@/src/types";
+import { amountLabel } from "@/src/format";
 import { api } from "@/src/api";
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/auth";
@@ -15,8 +18,13 @@ import dayjs from "dayjs";
 
 type Tone = "Polite" | "Firm" | "Casual" | "Professional";
 
+export const OWNER_PREFIX = "owner__";
+
 export default function FollowUp() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  // Owner mode: /followup/owner__<name> drafts ONE message covering everything that owner still owes.
+  const ownerName = rawId?.startsWith(OWNER_PREFIX) ? decodeURIComponent(rawId.slice(OWNER_PREFIX.length)) : null;
+  const id = ownerName ? "" : rawId;
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -25,22 +33,27 @@ export default function FollowUp() {
   const { user } = useAuth();
   const q = useAwait(id);
   const action = useAwaitAction(id);
+  const invalidate = useInvalidateAwaits();
+  const ownerQ = useQuery({ queryKey: ["owners", ownerName], queryFn: () => api<{ ownerName: string; open: AwaitItem[] }>(`/owners/${encodeURIComponent(ownerName!)}`), enabled: !!ownerName });
+  const ownerItems = ownerQ.data?.open ?? [];
   const [tone, setTone] = useState<Tone>("Polite");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [aiLimit, setAiLimit] = useState(false);
   const [sentSheet, setSentSheet] = useState(false);
-  const item = q.data;
+  const item = ownerName ? (ownerItems[0] ?? null) : q.data;
 
   const fallback = () =>
-    item
+    ownerName && ownerItems.length
+      ? `Hi ${ownerName},\n\nI’m following up on a few things that are still pending:\n${ownerItems.map((it) => `• ${it.commitment}${amountLabel(it) ? ` (${amountLabel(it)})` : ""}${it.expectedAt ? ` — expected ${dayjs(it.expectedAt).format("MMM D")}` : ""}`).join("\n")}\n\nCould you please confirm the status of each, or share a new date?\n\nThanks,\n${user?.name ?? ""}`
+      : item
       ? `Hi ${item.ownerName},\n\nI’m following up on ${item.commitment.charAt(0).toLowerCase() + item.commitment.slice(1)}. It was expected by ${item.expectedAt ? dayjs(item.expectedAt).format("MMM D, YYYY") : "the agreed date"}. Could you please confirm the status?\n\nThanks,\n${user?.name ?? ""}`
       : "";
 
   const generate = async (t: Tone) => {
     setBusy(true);
     try {
-      const r = await api<{ draft: string }>(`/awaits/${id}/followup-draft`, { method: "POST", json: { tone: t } });
+      const r = await api<{ draft: string }>(ownerName ? `/owners/${encodeURIComponent(ownerName)}/followup-draft` : `/awaits/${id}/followup-draft`, { method: "POST", json: { tone: t } });
       setDraft(r.draft);
     } catch (e: any) {
       if (e?.status === 402) {
@@ -58,7 +71,7 @@ export default function FollowUp() {
   useEffect(() => {
     if (item && !draft) generate("Polite");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item?.id]);
+  }, [item?.id, ownerItems.length]);
 
   const copy = async () => {
     if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
@@ -85,6 +98,17 @@ export default function FollowUp() {
   };
 
   const recordSent = (days: number) => {
+    if (ownerName) {
+      api(`/owners/${encodeURIComponent(ownerName)}/followup-sent`, { method: "POST", json: { checkDays: days, text: draft } })
+        .then(() => {
+          invalidate();
+          setSentSheet(false);
+          toast.show(`Follow-up recorded for ${ownerItems.length} items · next check in ${days} day${days > 1 ? "s" : ""}`, "success");
+          router.back();
+        })
+        .catch((e: any) => toast.show(e?.message ?? "Could not record", "error"));
+      return;
+    }
     action.mutate({ path: "/followup-sent", json: { checkDays: days, text: draft } }, {
       onSuccess: () => {
         setSentSheet(false);
@@ -96,13 +120,20 @@ export default function FollowUp() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="followup-screen">
-      <ScreenHeader title="Follow Up" />
+      <ScreenHeader title={ownerName ? "Follow up on everything" : "Follow Up"} />
       <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} bottomOffset={24}>
         <View style={{ alignItems: "center" }}>
           <IconBox name="chatbubble-ellipses-outline" size={64} />
         </View>
-        <Text style={styles.title}>AI draft ready</Text>
-        <Text style={styles.sub}>You can edit before sending. Await never sends messages for you.</Text>
+        <Text style={styles.title}>{ownerName ? `One message for ${ownerName}` : "AI draft ready"}</Text>
+        <Text style={styles.sub}>{ownerName ? `Covers all ${ownerItems.length} open item${ownerItems.length === 1 ? "" : "s"}. ` : ""}You can edit before sending. Await never sends messages for you.</Text>
+        {ownerName ? (
+          <View style={styles.itemsCard} testID="followup-owner-items">
+            {ownerItems.map((it) => (
+              <Text key={it.id} style={styles.itemLine} numberOfLines={1}>• {it.commitment}{amountLabel(it) ? ` · ${amountLabel(it)}` : ""}{it.expectedAt ? ` · ${dayjs(it.expectedAt).format("MMM D")}` : ""}</Text>
+            ))}
+          </View>
+        ) : null}
         <Chips<Tone>
           testID="followup-tone"
           value={tone}
@@ -153,6 +184,8 @@ const useStyles = makeStyles((c) => ({
   content: { paddingHorizontal: spacing.xl, gap: 12 },
   title: { fontSize: 22, fontWeight: "800", color: c.onSurface, textAlign: "center" },
   sub: { fontSize: 14, color: c.muted, textAlign: "center" },
+  itemsCard: { backgroundColor: c.surfaceTertiary, borderRadius: radius.md, padding: 12, gap: 4 },
+  itemLine: { fontSize: 13.5, color: c.onSurfaceSecondary },
   draftCard: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, minHeight: 200 },
   draft: { fontSize: 15, lineHeight: 23, color: c.onSurface, minHeight: 170, textAlignVertical: "top" },
 }));

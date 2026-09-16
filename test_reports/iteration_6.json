@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 6 verification. BACKEND: 6/6 new pytest cases in /app/backend/tests/test_iteration6.py PASS; full regression 50/50 PASS. Coverage: (1) GET /api/stats/monthly?months=6 returns 6 buckets with {month YYYY-MM, label, opened, closed, owed, recovered}, currency string len=3; last month equals current YYYY-MM (2026-09); opened counts reconcile exactly with /api/awaits createdAt; months=3 returns 3 buckets. (2) POST /api/owners/amazon/followup-draft {tone:'Polite'} → 200 {draft(non-empty, contains 'Refund'/'3,499', NO em-dash '\\u2014'), tone:'Polite', items:[...>=1]}; if alex hits AI_LIMIT (402), a fresh throwaway user is registered and re-tested. POST /api/owners/nobody/followup-draft → 404. (3) POST /api/owners/rahul/followup-sent {checkDays:3,text:'hi'} → 200 {updated:>=1, items:[...]}; nextCheckAt is within <1h of now+3d; corresponding FOLLOWUP_RECORDED event present (verified via /awaits/{id}/events using type='FOLLOWUP_RECORDED'). (4) POST /api/awaits with reminderLeadDays:3 and expectedAt=now+10d returns nextReminderAt within <1h of expectedAt-3d; REMINDER_SCHEDULED event with text 'Early reminder set · 3 days before the promised date' present; item cleaned up (DELETE 200). FRONTEND (390x844): (A) Add → add-manual-option (URL /capture/manual): typing 'Amazon' in form-who-input surfaces form-reliability-alert with copy 'Amazon is often late', chips form-lead-0 ('Remind on the date'), form-lead-7 ('7 days early') and form-lead-10 ('10 days early'); '7 days early' auto-selected (blue). Typing 'Zzz Unknown' hides the alert. Nothing saved. (B) Profile → profile-owners-row (People & Companies, '6 parties · ₹48,499 owed to you') → owner-row-amazon → owner-screen ('Amazon', 'Often late', owner-bulk-followup-button text 'Follow up'). Tap → /followup/owner__Amazon: followup-screen present, header 'Follow up on everything' + 'One message for Amazon', followup-owner-items lists '• Refund ₹3,499 · Sep 13'; followup-draft-input filled with AI polite draft (280 chars, contains 'Refund' and '₹3,499', no '—'); followup-copy-button present. Tap followup-sent-button → check-again-sheet visible → '3 days' → toast 'Follow-up recorded for 1 items · next check in 3 days' + return to /owner/Amazon. (C) Profile → profile-progress-row → /stats: stats-monthly card with 'Last 6 months', stats-monthly-mode chips (Awaits/Money), 6 month cols stats-month-2026-04 … 2026-09, legend 'Opened · 7 / Closed · 2'; switching to Money → 'Owed · ₹55,699 / Recovered · ₹7,200'. NO red screen; NO 'transform-origin' console warnings (searched full session); 0 console errors. Deprecated packages detected: none in iteration-6 touched files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iteration6.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:471 — nextReminderAt = expectedAt - timedelta(days=reminderLeadDays) when reminderLeadDays>0. When lead is 0 (or expectedAt is None), it falls back to expectedAt. Behavior matches spec.",
+    "server.py:754 — followup-draft returns 402 with detail={'code':'AI_LIMIT','limit':FREE_AI_FOLLOWUPS} for FREE users after 3 uses; test tolerates both 200 and 402 as required. Consider always allowing draft for 0-item cases before the quota check, but items existence is fine.",
+    "server.py:786 — /stats/monthly loads up to 5000 awaits per request. Acceptable for FREE plan; consider a Mongo aggregation grouped by ($year,$month) of createdAt / completedAt if user data grows.",
+    "MonthlyChart.tsx:36-84 — Pure RN Views/Text; no transformOrigin/CSS-only props leaked. Previous DOM warning is no longer triggered in web preview (confirmed 0 transform-origin warnings across full session).",
+    "AwaitForm.tsx:47 — suggested = clamp(round(avgDaysLate||2), 2, 7). For Amazon avgDaysLate=28 the suggested chip is capped at 7 → chip set becomes {0, 7, 10}; matches spec's 'form-lead-7 / form-lead-10 style chips'. Consider surfacing that the cap exists in UX copy.",
+    "followup/[id].tsx:145 — followup-draft-input is bound to editable state; when API returns fallback text on LLM failure, UI degrades gracefully. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py (new: 6 pytest cases)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 iteration6 pytest; 50/50 regression)",
+    "frontend": "100% of iteration-6 review items verified visually on Expo web preview 390x844: reliability alert + chip auto-select + hide-for-unknown, owner bulk followup end-to-end (Amazon 'Follow up' → draft with Refund/₹3,499 → sent → 3 days → toast → back), stats monthly card with 6 columns and both Awaits/Money legends including the ₹7,200 recovered anchor."
+  },
+  "seed_data_creation": "One TEST 'Lead Test / Send file' await was created via POST /api/awaits with reminderLeadDays:3, verified, and DELETE'd within the test (verified 200). One fresh throwaway user (test_it6_*@example.com) may have been created only if alex hit AI_LIMIT (402) on the followup-draft test; if created, it holds its own seeded Amazon items (unrelated to alex). Alex's Amazon 'Refund ₹3,499' now has nextCheckAt≈now+3d (recorded FOLLOWUP_RECORDED via UI+API tests) — per spec this residue is fine.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All iteration 1-6 backend tests green (50/50). Iteration 6 UI flows verified on 390x844 web preview with alex@example.com/password123. Onboarding overlay at /onboarding/notifications intercepts first login — dismiss with 'Not now'. Use in-app tab bar (tab-profile, tab-add) after dismissal. On Profile → owners → Amazon, owner-bulk-followup-button label is 'Follow up' (not 'Follow up on all N') because Amazon has exactly 1 open item; if seed changes to N>1 items the copy will update. Alex's Amazon refund item now has nextCheckAt set (~+3d) from this run; if a subsequent test requires it to be 'now', reset with POST /api/awaits/{id}/snooze or leave as-is (spec explicitly said 'leave as is'). stats/monthly currency was 'INR' with Owed ₹55,699 (open sum incl. new Rahul-follow-up items) / Recovered ₹7,200 in current month bucket 2026-09. No console errors and no transform-origin DOM warnings observed anywhere.",
+  "rca_of_issue": ""
+}
