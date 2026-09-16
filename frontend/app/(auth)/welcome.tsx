@@ -3,10 +3,14 @@ import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
-import { LogoMark } from "@/src/components/Logo";
 import { Icon } from "@/src/components/ui";
+import { AnimatedLogoMark } from "@/src/components/AnimatedLogo";
+import LottieView from "lottie-react-native";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useAuth } from "@/src/auth";
 import { useToast } from "@/src/components/Toast";
+
+const orbit = require("../../assets/lottie/await-orbit.json");
 
 export default function Welcome() {
   const styles = useStyles();
@@ -31,14 +35,23 @@ export default function Welcome() {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 20 }]} testID="welcome-screen">
       <View style={styles.hero}>
-        <View style={styles.logoBadge}>
-          <LogoMark size={64} />
+        <View style={styles.stage}>
+          <View testID="welcome-lottie" style={styles.lottie} pointerEvents="none">
+            <LottieView source={orbit} autoPlay loop style={{ width: 260, height: 260 }} />
+          </View>
+          <Animated.View entering={FadeInUp.duration(600)} style={styles.logoBadge}>
+            <AnimatedLogoMark size={64} />
+          </Animated.View>
         </View>
-        <Text style={styles.title}>Await</Text>
-        <Text style={styles.tagline}>Track it. Follow up. Get it done.</Text>
+        <Animated.Text entering={FadeInDown.delay(900).duration(500)} style={styles.title}>
+          Await
+        </Animated.Text>
+        <Animated.Text entering={FadeInDown.delay(1100).duration(500)} style={styles.tagline}>
+          Track it. Follow up. Get it done.
+        </Animated.Text>
       </View>
 
-      <View style={styles.actions}>
+      <Animated.View entering={FadeInDown.delay(1300).duration(600)} style={styles.actions}>
         <AuthButton testID="welcome-google-button" icon="logo-google" label="Continue with Google" onPress={() => run("g", loginGoogle)} busy={busy === "g"} />
         <AuthButton testID="welcome-email-button" icon="mail-outline" label="Continue with Email" onPress={() => router.push("/(auth)/register")} />
         <Pressable testID="welcome-guest-button" onPress={() => run("guest", continueAsGuest)} style={styles.guest}>
@@ -50,7 +63,7 @@ export default function Welcome() {
             I already have an account <Text style={{ color: colors.brandPrimary, fontWeight: "700" }}>Sign in</Text>
           </Text>
         </Pressable>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -69,7 +82,9 @@ function AuthButton({ icon, label, onPress, busy, testID }: { icon: string; labe
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface, paddingHorizontal: spacing.xxl, justifyContent: "space-between" },
   hero: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  logoBadge: { width: 112, height: 112, borderRadius: 32, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  stage: { width: 260, height: 260, alignItems: "center", justifyContent: "center", marginBottom: -20 },
+  lottie: { position: "absolute", width: 260, height: 260 },
+  logoBadge: { width: 112, height: 112, borderRadius: 32, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 36, fontWeight: "800", color: c.onSurface, letterSpacing: -0.5 },
   tagline: { fontSize: 16, color: c.muted },
   actions: { gap: 12 },

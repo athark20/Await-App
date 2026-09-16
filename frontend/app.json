@@ -34,35 +34,15 @@
         {
           "action": "VIEW",
           "autoVerify": false,
-          "data": [{ "scheme": "await" }],
-          "category": ["BROWSABLE", "DEFAULT"]
-        },
-        {
-          "action": "SEND",
-          "data": [{ "mimeType": "text/*" }],
-          "category": ["DEFAULT"]
-        },
-        {
-          "action": "SEND",
-          "data": [{ "mimeType": "image/*" }],
-          "category": ["DEFAULT"]
-        },
-        {
-          "action": "SEND",
           "data": [
-            { "mimeType": "application/pdf" },
-            { "mimeType": "application/msword" },
-            { "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
-            { "mimeType": "text/csv" },
-            { "mimeType": "application/vnd.ms-excel" },
-            { "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+            {
+              "scheme": "await"
+            }
           ],
-          "category": ["DEFAULT"]
-        },
-        {
-          "action": "SEND_MULTIPLE",
-          "data": [{ "mimeType": "image/*" }, { "mimeType": "application/pdf" }, { "mimeType": "text/*" }],
-          "category": ["DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -90,7 +70,9 @@
       "@react-native-vector-icons/ionicons",
       [
         "expo-audio",
-        { "microphonePermission": "Record voice notes to add Awaits hands-free" }
+        {
+          "microphonePermission": "Record voice notes to add Awaits hands-free"
+        }
       ],
       [
         "expo-image-picker",
@@ -101,9 +83,44 @@
       ],
       [
         "expo-notifications",
-        { "color": "#168CFF" }
+        {
+          "color": "#168CFF"
+        }
       ],
-      "expo-document-picker"
+      "expo-document-picker",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": [
+            "text/*",
+            "image/*",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/csv",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ],
+          "androidMultiIntentFilters": [
+            "image/*",
+            "application/pdf",
+            "text/*"
+          ],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 5,
+            "NSExtensionActivationSupportsFileWithMaxCount": 3
+          }
+        }
+      ],
+      [
+        "expo-background-task",
+        {
+          "minimumInterval": 360
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

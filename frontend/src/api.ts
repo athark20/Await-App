@@ -4,7 +4,12 @@ export const TOKEN_KEY = "await.session_token";
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 let memToken: string | null = null;
+let planHeader: "FREE" | "PRO" = "FREE";
 let onUnauthorized: (() => void) | null = null;
+
+export function setPlanHeader(p: "FREE" | "PRO") {
+  planHeader = p;
+}
 
 export function setToken(t: string | null) {
   memToken = t;
@@ -32,6 +37,7 @@ export async function api<T = any>(path: string, init: RequestInit & { json?: an
   const headers: Record<string, string> = { ...(init.headers as any) };
   if (init.json !== undefined) headers["Content-Type"] = "application/json";
   if (memToken) headers.Authorization = `Bearer ${memToken}`;
+  headers["X-Plan"] = planHeader;
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
     headers,

@@ -132,6 +132,8 @@ async def get_user(request: Request) -> dict:
         await db.users.update_one({"user_id": u["user_id"]}, {"$set": {"usage_month": month, "ai_extractions_used": 0, "ai_followups_used": 0}})
         u["ai_extractions_used"] = 0
         u["ai_followups_used"] = 0
+    # Plan is verified client-side by the RevenueCat SDK (entitlement `pro`) and passed as a header.
+    u["plan"] = "PRO" if request.headers.get("X-Plan") == "PRO" else "FREE"
     return u
 
 
@@ -557,17 +559,6 @@ async def reminders_tick(user=Depends(get_user)):
         await db.awaits.update_one({"id": a["id"]}, {"$set": upd})
         fired.append({"awaitId": a["id"], "kind": kind, "title": f"{a['ownerName']} hasn't {a['commitment'][0].lower() + a['commitment'][1:]} yet." if kind != "NEEDS_REVIEW" else f"{a['ownerName']} · {a['commitment']} needs review", "ownerName": a["ownerName"], "commitment": a["commitment"]})
     return {"fired": fired}
-
-
-@api.post("/plan/upgrade")
-async def upgrade(user=Depends(get_user)):
-    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"plan": "PRO"}})
-    return {"ok": True, "plan": "PRO"}
-
-
-@api.post("/plan/restore")
-async def restore(user=Depends(get_user)):
-    return {"ok": True, "plan": user.get("plan", "FREE")}
 
 
 @api.post("/data/clear")

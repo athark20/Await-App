@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 2 full test of Await app (backend + frontend). Backend 26/26 pytest pass (100%). All new X-Plan RevenueCat behaviors verified: (a) X-Plan: PRO on /api/awaits returns seeded DONE items older than 30 days (no cutoff), (b) absent/FREE X-Plan applies the 30-day cutoff to DONE, (c) 11th active Await creation succeeds with X-Plan: PRO on a fresh user (FREE_LIMIT bypassed), (d) POST /api/plan/upgrade and /api/plan/restore return 404 (removed), (e) /api/reminders/tick returns {fired:[...]}, (f) /auth/me plan flips FREE↔PRO by header. Prior iteration_1 seed-cutoff bug is no longer reproducible — FREE users now see 2 seeded DONE items (seed adjusted). Frontend (web 390x844): Welcome renders with animated-logo + title 'Await' + Continue with Google/Email/Sign in buttons; welcome-lottie testID does not propagate to DOM on web build (LottieView web renderer strips testID) — orbit SVG is present in DOM. Login as alex → Not now → Home renders correctly with 7 seeded items, chips All 5/Today 3/Upcoming 2, dedup fixed (overdue cards no longer duplicated), tab-* each rendered exactly once (iteration_1 UI bugs FIXED). Profile → Upgrade shows pro-active-banner + 'You're on Pro' disabled + plan-monthly $9.99 + plan-yearly $79.99 Save 33% + restore-purchase-link. Fresh user Upgrade shows 'Simulated purchases (RevenueCat Test Store)' banner, both plan cards loaded, upgrade-button ENABLED, purchase-confirm-sheet-primary → RC Test Store overlay → 'Test valid purchase' → profile-plan-pill flips to Pro (full purchase flow WORKING end-to-end). AwaitForm phrase parser: 'within 7-10 business days' → hint 'Expected Wed, 30 Sep 2026'; 'by Friday' → recognized; 'blah' → 'Couldn't read \"blah\" — pick a date'; form-date-picker-button present. Share regression: Share → Shared message (new Await) → preview → Analyze → /capture/match 'Update Found' with new expected date (AI, ~5s). No deprecated packages, no red screens. Deprecated packages detected: none.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Welcome LottieView", "issue": "testID='welcome-lottie' does not render into DOM in web build (0 elements with that data-testid; orbit SVG still animates via lottie-react web). Purely a testability issue; visual works. Reference: /app/frontend/app/(auth)/welcome.tsx:39", "testID": "welcome-lottie", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/conftest.py", "/app/backend/tests/test_await_backend.py", "/app/test_reports/pytest/results.xml"],
+  "action_items": [
+    "(optional / testability only) Pass testID prop to LottieView in a web-friendly way, e.g. wrap the LottieView in a <View testID='welcome-lottie'> so the id shows in the DOM for automated tests."
+  ],
+  "critical_code_review_comments": [
+    "server.py:136 — plan is set from header X-Plan on every request; this is fine but note it bypasses any server-side entitlement verification (RevenueCat SDK entitlement is trusted client-side, matches doc).",
+    "server.py:357-358 — 30-day cutoff for FREE still lives in code and still filters DONE items via completedAt. Now benign because seeds are within window and PRO users bypass it. Consider whether the cutoff should also skip when the request explicitly filters state=DONE to future-proof against very old completions."
+  ],
+  "updated_files": ["/app/backend/tests/test_await_backend.py (added TestXPlanHeader, replaced test_plan_upgrade with removal assertions)"],
+  "success_rate": {"backend": "100% (26/26 pytest)", "frontend": "~100% (all requested flows verified; only 1 low-priority testability nit)"},
+  "seed_data_creation": "Registered ~4 throwaway test users (test_*, prolimit_*, and one fresh flow user) via UUID emails. Alex is now Pro on the DB (upgrade from an earlier flow), which the review request already anticipated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All iteration_2 flows verified. Alex is now on Pro plan in the DB (persisted from server side). If Alex needs to be FREE again for future tests, reset via DB (users.plan='FREE'). Fresh RegisterEmail flow works — use uuid emails. Backend URL from EXPO_PUBLIC_BACKEND_URL. RC Test Store overlay uses text button 'Test valid purchase' (DOM overlay from purchases-js).",
+  "rca_of_issue": ""
+}

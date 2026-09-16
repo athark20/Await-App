@@ -9,6 +9,7 @@ import { Sheet } from "@/src/components/Sheet";
 import { useAuth } from "@/src/auth";
 import { usesNativeTabs } from "@/src/navigation";
 import { useStats } from "@/src/hooks";
+import { useSubscription } from "@/src/revenuecat";
 
 export default function Profile() {
   const styles = useStyles();
@@ -16,6 +17,8 @@ export default function Profile() {
   const router = useRouter();
   const { colors } = useTheme();
   const { user, logout } = useAuth();
+  const { isSubscribed } = useSubscription();
+  const isPro = isSubscribed;
   const stats = useStats();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
@@ -38,7 +41,7 @@ export default function Profile() {
             </Text>
             <Text style={styles.email}>{user?.email}</Text>
           </View>
-          <Pill text={user?.plan === "PRO" ? "Pro" : "Free"} tone={user?.plan === "PRO" ? "warning" : "neutral"} testID="profile-plan-pill" />
+          <Pill text={isPro ? "Pro" : "Free"} tone={isPro ? "warning" : "neutral"} testID="profile-plan-pill" />
         </View>
 
         <Group>
@@ -55,8 +58,8 @@ export default function Profile() {
             <Icon name="star" size={20} color={colors.warning} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.upTitle}>{user?.plan === "PRO" ? "You’re on Pro" : "Upgrade to Pro"}</Text>
-            <Text style={styles.upSub}>{user?.plan === "PRO" ? "Unlimited Awaits, voice capture, smart reminders" : "Unlimited Awaits · voice capture · smart reminders"}</Text>
+            <Text style={styles.upTitle}>{isPro ? "You’re on Pro" : "Upgrade to Pro"}</Text>
+            <Text style={styles.upSub}>{isPro ? "Unlimited Awaits, voice capture, smart reminders" : "Unlimited Awaits · voice capture · smart reminders"}</Text>
           </View>
           <Icon name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>

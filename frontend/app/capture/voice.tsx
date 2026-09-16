@@ -10,7 +10,7 @@ import { captureStore } from "@/src/capture-store";
 import { analyzeCurrent } from "@/src/analyze";
 import { api } from "@/src/api";
 import { useToast } from "@/src/components/Toast";
-import { useAuth } from "@/src/auth";
+import { useSubscription } from "@/src/revenuecat";
 import { FreeLimitAi } from "@/app/capture/share";
 
 export default function Voice() {
@@ -19,7 +19,6 @@ export default function Voice() {
   const router = useRouter();
   const toast = useToast();
   const { colors } = useTheme();
-  const { user } = useAuth();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder, 500);
   const [transcript, setTranscript] = useState("");
@@ -76,7 +75,7 @@ export default function Voice() {
   };
 
   const secs = Math.floor((state.durationMillis ?? 0) / 1000);
-  const pro = user?.plan === "PRO";
+  const pro = useSubscription().isSubscribed;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="voice-screen">

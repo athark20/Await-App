@@ -15,6 +15,7 @@ import { useToast } from "@/src/components/Toast";
 import { FreeLimitSheet, useFreeLimit } from "@/src/components/common";
 import { sourceLabel } from "@/src/format";
 import { scheduleReminder } from "@/src/notifications";
+import { parseExpectedPhrase } from "@/src/dates";
 
 export default function Confirm() {
   const styles = useStyles();
@@ -27,7 +28,7 @@ export default function Confirm() {
   const ex = payload?.extraction;
   const [form, setForm] = useState<AwaitFormValue>(() =>
     ex
-      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : null, expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "" }
+      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "" }
       : emptyForm(),
   );
   const [saving, setSaving] = useState(false);

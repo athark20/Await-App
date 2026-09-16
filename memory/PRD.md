@@ -37,5 +37,16 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - P2: DOCX/XLSX text extraction server-side; offline write queue; multi-device sync polish
 - P2: Password reset email (Resend)
 
+## Implemented (2026-06) — Iteration 2
+- RevenueCat (Emergent-managed) Pro subscriptions: `src/revenuecat.tsx` provider, logIn identity binding, Test Store in preview, coded paywall with Restore Purchase; backend honors `X-Plan` header from the verified entitlement (plan endpoints removed). Details in `/app/memory/revenuecat.md`.
+- Native Android share bridge: `expo-share-intent` config plugin (ACTION_SEND + SEND_MULTIPLE for text/images/PDF/DOC/CSV/XLS) → `src/share-bridge.tsx` → Share-to-Await flow. Real build only.
+- Background reminders: `expo-background-task` + `expo-task-manager` (`src/background.ts`) call `/api/reminders/tick` ~every 6h and fire actionable notifications; also ticks on launch. Real build only.
+- Smart Expected-by field: native calendar picker (`@react-native-community/datetimepicker`) + phrase parser `src/dates.ts` ("within 7–10 business days" → latest date, weekdays, "Sep 18", "end of month"…), used in form and AI confirm.
+- Welcome motion: self-drawing loop logo + pulsing amber dot (reanimated), Lottie orbit ring, staggered fade-in.
+
+## Backlog (updated)
+- P1: Native date picker for iOS inline mode polish; App Lock via expo-local-authentication; daily summary notification
+- P2: DOCX/XLSX server-side text extraction; offline write queue; password reset email (Resend)
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

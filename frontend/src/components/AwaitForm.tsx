@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import dayjs from "dayjs";
-import { makeStyles, radius } from "@/src/theme";
-import { Field, StateSelector } from "@/src/components/ui";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { makeStyles, radius, useTheme } from "@/src/theme";
+import { Field, Icon, StateSelector } from "@/src/components/ui";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
+import { parseExpectedPhrase } from "@/src/dates";
 
 export interface AwaitFormValue {
   who: string;
@@ -27,8 +29,10 @@ function nextWeekday(day: number) {
 
 export function AwaitForm({ value, onChange, showNotes = true, showState = true, source }: { value: AwaitFormValue; onChange: (v: AwaitFormValue) => void; showNotes?: boolean; showState?: boolean; source?: string }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const set = (p: Partial<AwaitFormValue>) => onChange({ ...value, ...p });
-  const [typed, setTyped] = useState(value.expectedAt ? dayjs(value.expectedAt).format("DD/MM/YYYY") : "");
+  const [typed, setTyped] = useState(value.expectedAt ? dayjs(value.expectedAt).format("DD/MM/YYYY") : value.expectedText || "");
+  const [showPicker, setShowPicker] = useState(false);
 
   const quick: [string, () => dayjs.Dayjs][] = [
     ["Today", () => dayjs().startOf("day")],
@@ -47,28 +51,60 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
 
   const onTyped = (t: string) => {
     setTyped(t);
-    const m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-    if (m) {
-      const y = m[3].length === 2 ? `20${m[3]}` : m[3];
-      const d = dayjs(`${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}T18:00:00`);
-      if (d.isValid()) set({ expectedAt: d.toISOString(), expectedText: d.format("D MMM YYYY") });
-    } else if (!t) set({ expectedAt: null });
+    if (!t.trim()) return set({ expectedAt: null, expectedText: "" });
+    const d = parseExpectedPhrase(t);
+    if (d) set({ expectedAt: d.toISOString(), expectedText: t.trim() });
+    else set({ expectedText: t.trim() });
   };
+
+  const onPicked = (e: DateTimePickerEvent, d?: Date) => {
+    if (Platform.OS === "android") setShowPicker(false);
+    if (e.type === "dismissed" || !d) return;
+    const day = dayjs(d).startOf("day").hour(18);
+    setTyped(day.format("DD/MM/YYYY"));
+    set({ expectedAt: day.toISOString(), expectedText: day.format("D MMM YYYY") });
+  };
+
+  const parsedHint = value.expectedAt
+    ? `Expected ${dayjs(value.expectedAt).format("ddd, D MMM YYYY")}${value.expectedText && !/^\d/.test(value.expectedText) ? ` · from “${value.expectedText}”` : ""}`
+    : value.expectedText
+      ? `Couldn’t read “${value.expectedText}” — pick a date`
+      : "Type a date or phrase (e.g. “within 7–10 business days”, “by Friday”)";
 
   return (
     <View style={{ gap: 16 }}>
       <Field label="Who" placeholder="e.g. Amazon, Sameer" value={value.who} onChangeText={(who) => set({ who })} testID="form-who-input" />
       <Field label="What" placeholder="e.g. Refund ₹3,499, Send quotation" value={value.what} onChangeText={(what) => set({ what })} testID="form-what-input" />
       <View style={{ gap: 6 }}>
-        <Field
-          label="Expected by"
-          placeholder="DD/MM/YYYY"
-          value={typed}
-          onChangeText={onTyped}
-          keyboardType="numbers-and-punctuation"
-          testID="form-expected-input"
-          hint={value.expectedAt ? `Expected ${dayjs(value.expectedAt).format("ddd, D MMM YYYY")}${value.expectedText && !/^\d/.test(value.expectedText) ? ` · “${value.expectedText}”` : ""}` : value.expectedText ? `AI read: “${value.expectedText}” — pick a date` : "Pick a quick option or type a date"}
-        />
+        <View style={styles.dateRow}>
+          <Field
+            label="Expected by"
+            placeholder="DD/MM/YYYY or “within 7–10 days”"
+            value={typed}
+            onChangeText={onTyped}
+            testID="form-expected-input"
+            hint={parsedHint}
+            style={{ flex: 1 }}
+          />
+          <Pressable testID="form-date-picker-button" onPress={() => setShowPicker((s) => !s)} style={styles.calBtn} hitSlop={6}>
+            <Icon name="calendar-outline" size={22} color={colors.brandPrimary} />
+          </Pressable>
+        </View>
+        {showPicker && Platform.OS !== "web" ? (
+          <DateTimePicker
+            testID="form-date-picker"
+            value={value.expectedAt ? new Date(value.expectedAt) : new Date()}
+            mode="date"
+            display={Platform.OS === "ios" ? "inline" : "calendar"}
+            minimumDate={new Date()}
+            onChange={onPicked}
+            accentColor={colors.brandPrimary}
+            themeVariant={undefined}
+          />
+        ) : null}
+        {showPicker && Platform.OS === "web" ? (
+          <Text style={styles.webPickerNote}>Type a date (DD/MM/YYYY) or a phrase — the native calendar opens on your phone.</Text>
+        ) : null}
         <View style={styles.quickRow}>
           {quick.map(([label, fn]) => {
             const d = fn();
@@ -115,6 +151,9 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
 
 const useStyles = makeStyles((c) => ({
   label: { fontSize: 13, fontWeight: "600", color: c.onSurfaceTertiary },
+  dateRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  calBtn: { width: 50, height: 50, marginTop: 25, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  webPickerNote: { fontSize: 12, color: c.muted },
   quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   quick: { height: 34, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, justifyContent: "center" },
   quickSel: { backgroundColor: c.brandTertiary, borderColor: c.brandPrimary },

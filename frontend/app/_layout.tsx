@@ -17,8 +17,18 @@ import { useTheme } from "@/src/theme";
 import { configureNotifications } from "@/src/notifications";
 import { handleIncomingUrl } from "@/src/share-intent";
 import { api } from "@/src/api";
+import { initializeRevenueCat, SubscriptionProvider } from "@/src/revenuecat";
+import { ShareBridgeProvider, useNativeShareIntent } from "@/src/share-bridge";
+import { registerReminderTask, runReminderTick } from "@/src/background";
 
 LogBox.ignoreAllLogs(true);
+
+// RevenueCat SDK init — once per launch, at module scope, before any component mounts.
+try {
+  initializeRevenueCat();
+} catch (err) {
+  console.warn("RevenueCat unavailable:", err);
+}
 
 function Gate() {
   const { user, loading } = useAuth();
@@ -29,6 +39,16 @@ function Gate() {
   useEffect(() => {
     configureNotifications();
   }, []);
+
+  // Native share target (real builds): ACTION_SEND / ACTION_SEND_MULTIPLE → Share-to-Await
+  useNativeShareIntent(!!user && ready);
+
+  // Background reminder engine (real builds) + a foreground tick on launch
+  useEffect(() => {
+    if (!user) return;
+    registerReminderTask();
+    runReminderTick().catch(() => {});
+  }, [user]);
 
   // Deep links: await://share?... and await://item/<id>
   useEffect(() => {
@@ -101,6 +121,11 @@ function Gate() {
   );
 }
 
+function WithSubscription({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return <SubscriptionProvider userId={user?.user_id ?? null}>{children}</SubscriptionProvider>;
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
@@ -108,11 +133,15 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <PrefsProvider>
             <AuthProvider>
-              <KeyboardProvider>
-                <ToastProvider>
-                  <Gate />
-                </ToastProvider>
-              </KeyboardProvider>
+              <WithSubscription>
+                <ShareBridgeProvider>
+                  <KeyboardProvider>
+                    <ToastProvider>
+                      <Gate />
+                    </ToastProvider>
+                  </KeyboardProvider>
+                </ShareBridgeProvider>
+              </WithSubscription>
             </AuthProvider>
           </PrefsProvider>
         </QueryClientProvider>

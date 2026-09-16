@@ -199,11 +199,73 @@ class TestMisc:
         assert r.status_code == 200
         assert "fired" in r.json() and isinstance(r.json()["fired"], list)
 
-    def test_plan_upgrade(self, api, fresh_user):
+    def test_plan_upgrade_removed(self, api, fresh_user):
+        """POST /plan/upgrade should have been removed (404/405)."""
         r = api.post(f"{API}/plan/upgrade", headers=fresh_user["headers"])
-        assert r.status_code == 200 and r.json()["plan"] == "PRO"
+        assert r.status_code in (404, 405), f"Expected 404/405, got {r.status_code}: {r.text}"
+
+    def test_plan_restore_removed(self, api, fresh_user):
+        r = api.post(f"{API}/plan/restore", headers=fresh_user["headers"])
+        assert r.status_code in (404, 405), f"Expected 404/405, got {r.status_code}: {r.text}"
+
+
+# --------------------------------------------------------------------- X-Plan header (RevenueCat)
+class TestXPlanHeader:
+    def test_me_plan_free_without_header(self, api, fresh_user):
         r = api.get(f"{API}/auth/me", headers=fresh_user["headers"])
-        assert r.json()["plan"] == "PRO"
+        assert r.status_code == 200
+        assert r.json().get("plan") == "FREE"
+
+    def test_me_plan_pro_with_header(self, api, fresh_user):
+        h = dict(fresh_user["headers"])
+        h["X-Plan"] = "PRO"
+        r = api.get(f"{API}/auth/me", headers=h)
+        assert r.status_code == 200
+        assert r.json().get("plan") == "PRO"
+
+    def test_awaits_pro_returns_old_done_items(self, api, fresh_user):
+        """With X-Plan: PRO, DONE items older than 30 days should be returned (no cutoff)."""
+        h = dict(fresh_user["headers"])
+        h["X-Plan"] = "PRO"
+        r = api.get(f"{API}/awaits?state=DONE", headers=h)
+        assert r.status_code == 200
+        docs = r.json()
+        # Seeded DONE items are 38-44 days old; PRO must see them.
+        assert len(docs) >= 2, f"PRO should see >=2 seeded DONE items, got {len(docs)}"
+
+    def test_awaits_free_hides_old_done_items(self, api, fresh_user):
+        """Without X-Plan header, 30-day cutoff applies to DONE items."""
+        r = api.get(f"{API}/awaits?state=DONE", headers=fresh_user["headers"])
+        assert r.status_code == 200
+        docs = r.json()
+        # Any DONE returned to FREE must have completedAt within 30 days.
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        for d in docs:
+            c = d.get("completedAt")
+            if not c:
+                continue
+            # Parse ISO
+            try:
+                dt = datetime.fromisoformat(c.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            assert dt >= cutoff, f"FREE returned DONE older than 30d: {d.get('ownerName')} completedAt={c}"
+
+    def test_free_limit_bypassed_with_pro_header(self, api):
+        """Creating 11th active Await succeeds when X-Plan: PRO is sent."""
+        email = f"prolimit_{uuid.uuid4().hex[:8]}@example.com"
+        r = api.post(f"{API}/auth/register", json={"name": "ProLimit", "email": email, "password": "password123"})
+        assert r.status_code in (200, 201)
+        tok = r.json()["session_token"]
+        h = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json", "X-Plan": "PRO"}
+
+        # Fresh user has 5 seeded active; add 5 to reach 10, then attempt the 11th.
+        for i in range(5):
+            r = api.post(f"{API}/awaits", json={"ownerName": f"P{i}", "commitment": "do thing"}, headers=h)
+            assert r.status_code == 201, r.text
+        r = api.post(f"{API}/awaits", json={"ownerName": "Eleven", "commitment": "make it pass"}, headers=h)
+        assert r.status_code == 201, f"PRO should allow 11th active, got {r.status_code}: {r.text}"
 
 
 # --------------------------------------------------------------------- AI
