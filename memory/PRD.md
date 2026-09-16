@@ -48,5 +48,12 @@ Production-quality Android-first Expo app "Await" that remembers commitments oth
 - P1: Native date picker for iOS inline mode polish; App Lock via expo-local-authentication; daily summary notification
 - P2: DOCX/XLSX server-side text extraction; offline write queue; password reset email (Resend)
 
+## Implemented (2026-06) — Iteration 3
+- Password reset via emailed 6-digit code (Emergent-managed Resend, `backend/emailer.py` with guardrail gate; `/auth/forgot`, `/auth/reset`; hashed codes, 15-min expiry, rate limits). Two-step Forgot screen.
+- Document AI: DOCX/XLSX/CSV text extraction server-side (python-docx/openpyxl) feeding the same extraction pipeline; legacy .doc/.xls → 415 UNSUPPORTED_FILE with "Enter manually" path.
+- App Lock: biometric (expo-local-authentication, device passcode fallback) + 4-digit Await PIN (`src/app-lock.tsx`), auto-lock after 1 min in background, PIN setup/change in Privacy & Security.
+- Daily 9 AM summary notification (`/api/summary/today` + DAILY trigger), refreshed on app open and by the background task; toggle in Notification settings.
+- Login/Welcome polish: card layout, coloured Google (deep blue) / Email (tinted) buttons, inline errors, fade-in motion.
+
 ## Notes
 - Google login, native share, notifications with actions and voice need a real device/build; web preview covers everything else.

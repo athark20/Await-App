@@ -6,12 +6,13 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Any, Dict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import os, uuid, logging, json, re, base64, tempfile
+import os, uuid, logging, json, re, base64, tempfile, secrets, io
 import bcrypt
 import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
+from emailer import send_email, reset_code_html, EMAIL_FROM_NAME  # noqa: E402
 
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = client[os.environ["DB_NAME"]]
@@ -175,7 +176,57 @@ async def google_session(body: SessionIn):
 
 @api.post("/auth/forgot")
 async def forgot(body: ForgotIn):
-    return {"ok": True, "message": "If an account exists, a reset link has been sent."}
+    email = body.email.lower().strip()
+    u = await db.users.find_one({"email": email, "deleted_at": None}, {"_id": 0})
+    if u and u.get("password_hash"):
+        recent = await db.password_resets.count_documents({"email": email, "created_at": {"$gt": now() - timedelta(hours=1)}})
+        if recent < 3:
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            await db.password_resets.insert_one({"id": uid("pr"), "email": email, "code_hash": bcrypt.hashpw(code.encode(), bcrypt.gensalt()).decode(),
+                                                 "created_at": now(), "expires_at": now() + timedelta(minutes=15), "used": False, "attempts": 0})
+            try:
+                await send_email(to=email, subject=f"Your {EMAIL_FROM_NAME} password reset code", html=reset_code_html(u.get("name", ""), code))
+            except HTTPException:
+                pass  # never reveal account existence
+    return {"ok": True, "message": "If an account exists, a 6-digit code has been emailed."}
+
+
+class ResetIn(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+
+@api.post("/auth/reset")
+async def reset_password(body: ResetIn):
+    if len(body.new_password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    email = body.email.lower().strip()
+    pr = await db.password_resets.find_one({"email": email, "used": False, "expires_at": {"$gt": now()}}, sort=[("created_at", -1)])
+    if not pr or pr.get("attempts", 0) >= 5 or not bcrypt.checkpw(body.code.strip().encode(), pr["code_hash"].encode()):
+        if pr:
+            await db.password_resets.update_one({"id": pr["id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(400, "Invalid or expired code")
+    ph = bcrypt.hashpw(body.new_password.encode(), bcrypt.gensalt()).decode()
+    await db.users.update_one({"email": email}, {"$set": {"password_hash": ph}})
+    await db.password_resets.update_one({"id": pr["id"]}, {"$set": {"used": True}})
+    u = await db.users.find_one({"email": email}, {"_id": 0})
+    await db.user_sessions.delete_many({"user_id": u["user_id"]})
+    return {"session_token": await mint_session(u["user_id"]), "user": public_user(u)}
+
+
+@api.get("/summary/today")
+async def summary_today(user=Depends(get_user)):
+    docs = [out_await(d) for d in await db.awaits.find({"user_id": user["user_id"], "deleted_at": None, "state": {"$ne": "DONE"}}, {"_id": 0}).to_list(1000)]
+    today = now().date()
+    due = [d for d in docs if d.get("expectedAt") and parse_dt(d["expectedAt"]).date() == today]
+    overdue = [d for d in docs if d["attentionState"] == "OVERDUE"]
+    parts = []
+    if due:
+        parts.append(f"{len(due)} due today ({', '.join(d['ownerName'] for d in due[:3])})")
+    if overdue:
+        parts.append(f"{len(overdue)} overdue ({', '.join(d['ownerName'] for d in overdue[:3])})")
+    return {"due": len(due), "overdue": len(overdue), "body": " · ".join(parts) if parts else "Nothing due today. You’re all caught up."}
 
 
 @api.get("/auth/me")
@@ -667,7 +718,49 @@ async def llm(system: str, text: str, provider: str = "openai", image_b64: str |
     return out
 
 
+DOC_MIMES = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-excel": "xls",
+    "text/csv": "csv",
+}
+
+
+def extract_document_text(data: bytes, mime: str, file_name: str | None) -> str:
+    kind = DOC_MIMES.get(mime) or (file_name or "").rsplit(".", 1)[-1].lower()
+    if kind == "docx":
+        import docx
+        d = docx.Document(io.BytesIO(data))
+        parts = [p.text for p in d.paragraphs if p.text.strip()]
+        for t in d.tables:
+            for row in t.rows:
+                parts.append(" | ".join(c.text.strip() for c in row.cells))
+        return "\n".join(parts)
+    if kind == "xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        parts = []
+        for ws in wb.worksheets[:3]:
+            parts.append(f"# {ws.title}")
+            for i, row in enumerate(ws.iter_rows(values_only=True)):
+                if i > 200:
+                    break
+                cells = [str(c) for c in row if c is not None]
+                if cells:
+                    parts.append(" | ".join(cells))
+        return "\n".join(parts)
+    if kind == "csv" or mime.startswith("text/"):
+        return data.decode("utf-8", errors="ignore")
+    raise HTTPException(415, detail={"code": "UNSUPPORTED_FILE", "message": "This file type isn’t supported yet."})
+
+
 async def run_extract(body: ExtractIn):
+    if body.mime_type in DOC_MIMES and body.image_base64 and not body.text:
+        body.text = extract_document_text(base64.b64decode(body.image_base64), body.mime_type, body.file_name)[:12000]
+        body.image_base64 = None
+        if not body.text.strip():
+            return {"confidence": 0}
     today = now().strftime("%A, %d %B %Y")
     parts = [f"Today is {today}."]
     if body.url:

@@ -52,8 +52,8 @@ export default function Welcome() {
       </View>
 
       <Animated.View entering={FadeInDown.delay(1300).duration(600)} style={styles.actions}>
-        <AuthButton testID="welcome-google-button" icon="logo-google" label="Continue with Google" onPress={() => run("g", loginGoogle)} busy={busy === "g"} />
-        <AuthButton testID="welcome-email-button" icon="mail-outline" label="Continue with Email" onPress={() => router.push("/(auth)/register")} />
+        <AuthButton testID="welcome-google-button" icon="logo-google" label="Continue with Google" variant="google" onPress={() => run("g", loginGoogle)} busy={busy === "g"} />
+        <AuthButton testID="welcome-email-button" icon="mail-outline" label="Continue with Email" variant="email" onPress={() => router.push("/(auth)/register")} />
         <Pressable testID="welcome-guest-button" onPress={() => run("guest", continueAsGuest)} style={styles.guest}>
           <Text style={styles.guestText}>{busy === "guest" ? "Setting up…" : "Skip for now"}</Text>
         </Pressable>
@@ -68,13 +68,18 @@ export default function Welcome() {
   );
 }
 
-function AuthButton({ icon, label, onPress, busy, testID }: { icon: string; label: string; onPress: () => void; busy?: boolean; testID: string }) {
+function AuthButton({ icon, label, onPress, busy, testID, variant }: { icon: string; label: string; onPress: () => void; busy?: boolean; testID: string; variant: "google" | "email" }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const google = variant === "google";
   return (
-    <Pressable testID={testID} onPress={onPress} disabled={busy} style={({ pressed }) => [styles.authBtn, pressed && { opacity: 0.85 }]}>
-      <Icon name={icon} size={20} color={colors.onSurface} />
-      <Text style={styles.authLabel}>{busy ? "Please wait…" : label}</Text>
+    <Pressable testID={testID} onPress={onPress} disabled={busy} style={({ pressed }) => [styles.authBtn, google ? styles.authGoogle : styles.authEmail, pressed && { opacity: 0.85 }]}>
+      {google ? (
+        <View style={styles.googleIcon}><Icon name={icon} size={18} color={colors.brandPrimary} /></View>
+      ) : (
+        <Icon name={icon} size={20} color={colors.onBrandTertiary} />
+      )}
+      <Text style={[styles.authLabel, { color: google ? colors.onBrandPrimary : colors.onBrandTertiary }]}>{busy ? "Please wait…" : label}</Text>
     </Pressable>
   );
 }
@@ -88,8 +93,11 @@ const useStyles = makeStyles((c) => ({
   title: { fontSize: 36, fontWeight: "800", color: c.onSurface, letterSpacing: -0.5 },
   tagline: { fontSize: 16, color: c.muted },
   actions: { gap: 12 },
-  authBtn: { height: 52, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  authLabel: { fontSize: 15.5, fontWeight: "700", color: c.onSurface },
+  authBtn: { height: 52, borderRadius: radius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  authGoogle: { backgroundColor: c.brandPrimary },
+  authEmail: { backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
+  googleIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.onBrandPrimary, alignItems: "center", justifyContent: "center" },
+  authLabel: { fontSize: 15.5, fontWeight: "700" },
   guest: { height: 44, alignItems: "center", justifyContent: "center" },
   guestText: { color: c.brandPrimary, fontWeight: "600", fontSize: 15 },
   legal: { fontSize: 11.5, color: c.muted, textAlign: "center", lineHeight: 16 },

@@ -5,8 +5,9 @@ import { Platform } from "react-native";
 import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 import * as Notifications from "expo-notifications";
-import { CATEGORY_ACTIONS, CHANNELS, configureNotifications } from "@/src/notifications";
+import { CATEGORY_ACTIONS, CHANNELS, configureNotifications, scheduleDailySummary } from "@/src/notifications";
 import { loadToken } from "@/src/api";
+import { storage } from "@/src/utils/storage";
 
 export const REMINDER_TASK = "await-reminder-tick";
 
@@ -17,6 +18,15 @@ export async function runReminderTick() {
   if (!res.ok) return 0;
   const data = (await res.json()) as { fired: { awaitId: string; kind: string; title: string }[] };
   await configureNotifications();
+  // Refresh the 9 AM daily digest with today's due/overdue picture
+  try {
+    const s = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/summary/today`, { headers: { Authorization: `Bearer ${token}` } });
+    if (s.ok) {
+      const raw = await storage.getItem<string | null>("await.prefs", null);
+      const prefs = raw ? JSON.parse(raw) : {};
+      await scheduleDailySummary((await s.json()).body, !!prefs.notifDaily, prefs.quietHours !== false);
+    }
+  } catch {}
   for (const f of data.fired) {
     await Notifications.scheduleNotificationAsync({
       content: {

@@ -11,7 +11,8 @@ import { useAwaits } from "@/src/hooks";
 import { useAuth } from "@/src/auth";
 import { greeting } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
-import { scheduleReminder } from "@/src/notifications";
+import { scheduleDailySummary, scheduleReminder } from "@/src/notifications";
+import { api } from "@/src/api";
 import { usePrefs } from "@/src/prefs";
 import type { AwaitItem } from "@/src/types";
 
@@ -31,7 +32,8 @@ export default function Home() {
 
   useEffect(() => {
     if (prefs.notifDue) items.forEach((it) => scheduleReminder(it, prefs.quietHours));
-  }, [items, prefs.notifDue, prefs.quietHours]);
+    api<{ body: string }>("/summary/today").then((s) => scheduleDailySummary(s.body, prefs.notifDaily, prefs.quietHours)).catch(() => {});
+  }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily]);
 
   const groups = useMemo(() => {
     const today = dayjs().startOf("day");

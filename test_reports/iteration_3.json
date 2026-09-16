@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 3 backend+frontend verification: All 8 new pytest cases in test_iteration3.py pass (100%). Password reset: POST /api/auth/forgot returns 200 ok for both delivered@resend.dev and unknown emails (no enumeration). POST /api/auth/reset with wrong code '000000' returns 400 'Invalid or expired code'. Successful reset verified by inserting a bcrypt-hashed code directly into password_resets — POST /api/auth/reset returned 200 with session_token+user, login with newpass123 succeeded, then password restored to 'password123' via a second seeded code. DOCX extraction: python-docx-generated DOCX ('ABC Insurance will respond to claim CLM-2291 by 30 September 2026') with mime application/vnd.openxmlformats-officedocument.wordprocessingml.document → ok=true, who contains 'abc'/'insurance'. XLSX (Vendor/Item/Expected) → ok=true. Legacy 'application/msword' with random bytes → HTTP 415 with detail.code=UNSUPPORTED_FILE. GET /api/summary/today (alex) → {due:int, overdue:int (>=2), body:str}. FRONTEND (390x844): Welcome — Google button solid blue rgb(22,140,255), Email tinted rgb(230,241,255) ✓. Login page: card layout with 'Welcome back' header + logo badge, blue Sign In rgb(22,140,255), deep-blue Continue with Google rgb(11,94,215), 'or continue with' divider, 'Create one' link present. Wrong password shows login-error box ✓. Login→Forgot password? → forgot-screen step 1; send code with delivered@resend.dev → step 2 shows forgot-code-input + forgot-new-password-input + forgot-reset-button + forgot-resend-link; entering 000000+abcdef → forgot-error 'Invalid or expired code' ✓. Login as alex/password123 succeeded → home rendered (10 await cards visible: All 5 / Today 3 / Upcoming 2, 2 overdue). App Lock end-to-end: Profile→Privacy & Security→toggle ON → pin-sheet opened; mismatched 1234/5678 → hint 'PINs don't match.' visible; 1234/1234 + Save PIN & enable → toggle stayed ON, privacy-change-pin-row appeared. Page reload → app-lock-screen overlay appeared; 1,1,1,1 → app-lock-error 'Wrong PIN. Try again.'; 1,2,3,4 → overlay disappeared, app usable. App Lock disabled at end via toggle so future tests aren't blocked. Alex's password left at password123. No red screens, no console errors beyond expected 400/401 responses. Deprecated packages detected: none.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:191 — /auth/forgot swallows send_email HTTPException silently (to avoid enumeration). Good behavior, but consider logging (server-side only) so ops can see undeliverable addresses.",
+    "server.py:206 — reset endpoint increments attempts even on 'no pr found or attempts>=5' path. Attempts counter cap is enforced, so behavior is fine, but the same 400 message is returned whether the reset window has expired or the code is wrong — matches spec (no info leakage)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new: 8 tests covering password reset, DOCX/XLSX/legacy extract, summary/today)"
+  ],
+  "success_rate": {"backend": "100% (8/8 iteration3 pytest; previous 26/26 still green)", "frontend": "100% of iteration_3 flows (welcome colors, login card, wrong-password error, forgot-password 2-step, app lock enable→reload→wrong PIN→correct PIN→disable)"},
+  "seed_data_creation": "Inserted then removed temporary bcrypt-hashed password_resets docs for delivered@resend.dev to verify a successful reset (state fully cleaned up in fixture teardown; delivered@resend.dev password left at password123). Registered a throwaway user (docext_*) for AI DOCX/XLSX tests. alex@example.com remains on FREE with password123.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All iteration_3 flows verified end-to-end. Alex password=password123 (restored implicitly — not changed by tests). delivered@resend.dev password=password123. App Lock is DISABLED at the end of the frontend test run. Backend URL: EXPO_PUBLIC_BACKEND_URL. Password reset code lookup uses the latest password_resets doc for the email (created_at DESC); when seeding a code in tests, set created_at slightly in the future to guarantee it wins over any pre-existing docs from prior forgot() calls. Emails to alex@example.com are undeliverable at the Resend provider (endpoint still returns ok as designed). Daily 9AM summary notification, biometrics, and native picker are device-only and were skipped per instructions.",
+  "rca_of_issue": ""
+}

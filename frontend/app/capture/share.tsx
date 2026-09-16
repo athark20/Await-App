@@ -116,7 +116,7 @@ export default function SharePreview() {
         icon="document-outline"
         tone="warning"
         title="This file type isn’t supported yet."
-        subtitle="Await can read text, images, PDF and plain-text documents. You can still attach this file as evidence."
+        subtitle="Await can read text, images, PDF, DOCX, XLSX and CSV. Legacy .doc/.xls aren’t supported yet — you can still attach this file as evidence."
         primary={{ title: "Enter manually", onPress: () => { setUnsupported(false); manual(); } }}
         secondary={{ title: "Choose another file", onPress: () => { setUnsupported(false); captureStore.clear(); router.replace("/(tabs)/add"); } }}
         testID="unsupported-sheet"

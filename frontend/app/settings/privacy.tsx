@@ -3,9 +3,10 @@ import { Linking, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, spacing } from "@/src/theme";
-import { Group, ListRow, ScreenHeader, Banner } from "@/src/components/ui";
+import { Group, ListRow, ScreenHeader, Banner, Field } from "@/src/components/ui";
 import { Sheet } from "@/src/components/Sheet";
 import { usePrefs } from "@/src/prefs";
+import { biometricAvailable, clearPin, savePin } from "@/src/app-lock";
 import { api } from "@/src/api";
 import { useInvalidateAwaits } from "@/src/hooks";
 import { useAuth } from "@/src/auth";
@@ -19,7 +20,30 @@ export default function Privacy() {
   const { logout } = useAuth();
   const invalidate = useInvalidateAwaits();
   const toast = useToast();
-  const [sheet, setSheet] = useState<null | "clear" | "delete">(null);
+  const [sheet, setSheet] = useState<null | "clear" | "delete" | "pin">(null);
+  const [pin, setPin] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+
+  const toggleLock = async (v: boolean) => {
+    if (v) {
+      setPin(""); setPin2(""); setPinError(null);
+      setSheet("pin");
+    } else {
+      await clearPin();
+      update({ appLock: false });
+      toast.show("App Lock disabled", "info");
+    }
+  };
+
+  const savePinAndEnable = async () => {
+    if (!/^\d{4}$/.test(pin)) return setPinError("PIN must be 4 digits.");
+    if (pin !== pin2) return setPinError("PINs don’t match.");
+    await savePin(pin);
+    update({ appLock: true });
+    setSheet(null);
+    toast.show((await biometricAvailable()) ? "App Lock on — biometrics + PIN" : "App Lock on — PIN", "success");
+  };
 
   const clear = async () => {
     await api("/data/clear", { method: "POST" });
@@ -41,8 +65,9 @@ export default function Privacy() {
         <Banner icon="shield-checkmark-outline" tone="brand" text="Your data stays private and under your control. Await only processes content you choose to share — it never reads your inbox, messages, notifications or clipboard." testID="privacy-banner" />
         <Text style={styles.section}>App Lock</Text>
         <Group>
-          <ListRow testID="privacy-applock-toggle" icon="lock-closed-outline" title="Biometric / passcode lock" subtitle="Require unlock when opening Await" toggle={prefs.appLock} onToggle={(v) => update({ appLock: v })} />
-          <ListRow icon="timer-outline" title="Auto-lock" value={prefs.appLock ? "After 1 minute" : "Off"} last />
+          <ListRow testID="privacy-applock-toggle" icon="lock-closed-outline" title="Biometric / passcode lock" subtitle="Fingerprint or face, with your 4-digit Await PIN" toggle={prefs.appLock} onToggle={toggleLock} />
+          {prefs.appLock ? <ListRow testID="privacy-change-pin-row" icon="keypad-outline" title="Change Await PIN" onPress={() => { setPin(""); setPin2(""); setPinError(null); setSheet("pin"); }} /> : null}
+          <ListRow icon="timer-outline" title="Auto-lock" value={prefs.appLock ? "After 1 minute in background" : "Off"} last />
         </Group>
         <Text style={styles.section}>Data & Privacy</Text>
         <Group>
@@ -53,6 +78,12 @@ export default function Privacy() {
         </Group>
         <Text style={styles.note}>No connected apps. No inbox access. No automatic sending. Ever.</Text>
       </ScrollView>
+      <Sheet visible={sheet === "pin"} onClose={() => setSheet(null)} icon="keypad-outline" title="Set your Await PIN" subtitle="4 digits. Used when biometrics aren’t available." primary={{ title: "Save PIN & enable", onPress: savePinAndEnable }} secondary={{ title: "Cancel", onPress: () => setSheet(null) }} testID="pin-sheet">
+        <View style={{ gap: 12, marginTop: 12 }}>
+          <Field placeholder="Enter 4-digit PIN" value={pin} onChangeText={(t) => setPin(t.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" secureTextEntry maxLength={4} testID="pin-input" />
+          <Field placeholder="Confirm PIN" value={pin2} onChangeText={(t) => setPin2(t.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" secureTextEntry maxLength={4} testID="pin-confirm-input" hint={pinError ?? undefined} />
+        </View>
+      </Sheet>
       <Sheet visible={sheet === "clear"} onClose={() => setSheet(null)} icon="trash-bin-outline" tone="warning" title="Clear app data?" subtitle="All your Awaits, notes and evidence will be removed." primary={{ title: "Clear App Data", variant: "danger", onPress: clear }} secondary={{ title: "Cancel", onPress: () => setSheet(null) }} testID="clear-data-sheet" />
       <Sheet visible={sheet === "delete"} onClose={() => setSheet(null)} icon="person-remove-outline" tone="error" title="Delete account?" subtitle="This removes your account and all data. This cannot be undone." primary={{ title: "Delete account", variant: "danger", onPress: del }} secondary={{ title: "Cancel", onPress: () => setSheet(null) }} testID="delete-account-sheet" />
     </View>

@@ -20,6 +20,7 @@ import { api } from "@/src/api";
 import { initializeRevenueCat, SubscriptionProvider } from "@/src/revenuecat";
 import { ShareBridgeProvider, useNativeShareIntent } from "@/src/share-bridge";
 import { registerReminderTask, runReminderTick } from "@/src/background";
+import { AppLockGate } from "@/src/app-lock";
 
 LogBox.ignoreAllLogs(true);
 
@@ -137,7 +138,9 @@ export default function RootLayout() {
                 <ShareBridgeProvider>
                   <KeyboardProvider>
                     <ToastProvider>
-                      <Gate />
+                      <AppLockGate active>
+                        <Gate />
+                      </AppLockGate>
                     </ToastProvider>
                   </KeyboardProvider>
                 </ShareBridgeProvider>

@@ -4,7 +4,16 @@ import { api } from "@/src/api";
 import { captureStore, type SharedItem } from "@/src/capture-store";
 import type { ExtractResponse } from "@/src/types";
 
-export const AI_READABLE_DOCS = ["application/pdf", "text/plain", "text/csv", "text/markdown", "text/html"];
+export const AI_READABLE_DOCS = [
+  "application/pdf",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
+  "text/html",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+const BINARY_DOCS = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
 
 export function isAiReadable(item: SharedItem) {
   if (item.kind !== "document") return true;
@@ -45,7 +54,7 @@ export async function analyzeCurrent(items?: SharedItem[]) {
     if (it.kind === "document" && it.uri) {
       file_name = it.fileName;
       mime_type = it.mimeType;
-      if (it.mimeType === "application/pdf") image_base64 = image_base64 ?? (await fileBase64(it.uri));
+      if (it.mimeType && BINARY_DOCS.includes(it.mimeType)) image_base64 = image_base64 ?? (await fileBase64(it.uri));
       else if (it.mimeType?.startsWith("text/")) texts.push(await fileText(it.uri));
     }
   }
