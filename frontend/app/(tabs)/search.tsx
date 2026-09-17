@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Chips, Icon, EmptyState } from "@/src/components/ui";
 import { AwaitCard } from "@/src/components/AwaitCard";
+import { AppBackground } from "@/src/components/AppBackground";
 import { useAwaits } from "@/src/hooks";
 import { usesNativeTabs } from "@/src/navigation";
 import { CATEGORIES, CATEGORY_LABEL, type Category } from "@/src/types";
@@ -39,6 +40,7 @@ export default function Search() {
 
   return (
     <View style={styles.root} testID="search-screen">
+      <AppBackground />
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>Search</Text>
         <View style={styles.searchBox}>

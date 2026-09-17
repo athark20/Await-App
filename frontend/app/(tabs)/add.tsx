@@ -11,6 +11,7 @@ import { usesNativeTabs } from "@/src/navigation";
 import { openIncomingShare } from "@/src/share-intent";
 import { useToast } from "@/src/components/Toast";
 import { QuickVoice } from "@/src/components/QuickVoice";
+import { AppBackground } from "@/src/components/AppBackground";
 import { FreeLimitAi } from "@/app/capture/share";
 
 export default function Add() {
@@ -42,6 +43,7 @@ export default function Add() {
 
   return (
     <View style={styles.root} testID="add-screen">
+      <AppBackground />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: bottomChrome + 24 }]}>
         <View style={{ alignItems: "center", gap: 8, marginBottom: 16 }}>
           <IconBox name="add-outline" size={72} />

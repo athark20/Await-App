@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Chips, EmptyState, Icon, SectionTitle } from "@/src/components/ui";
 import { AwaitCard } from "@/src/components/AwaitCard";
+import { AppBackground } from "@/src/components/AppBackground";
 import { SnoozeSheet, type SnoozePick } from "@/src/components/SnoozeSheet";
 import { useToast } from "@/src/components/Toast";
 import { ErrorRetry, OfflineBanner } from "@/src/components/common";
@@ -106,6 +107,7 @@ export default function Home() {
 
   return (
     <View style={styles.root} testID="home-screen">
+      <AppBackground />
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>

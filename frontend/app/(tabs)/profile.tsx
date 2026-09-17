@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Group, ListRow, Icon, Pill } from "@/src/components/ui";
 import { Sheet } from "@/src/components/Sheet";
+import { AppBackground } from "@/src/components/AppBackground";
 import { useAuth } from "@/src/auth";
 import { usesNativeTabs } from "@/src/navigation";
 import { useStats } from "@/src/hooks";
@@ -25,6 +26,7 @@ export default function Profile() {
 
   return (
     <View style={styles.root} testID="profile-screen">
+      <AppBackground />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: bottomChrome + 24 }]}>
         <Text style={styles.title}>Profile</Text>
         <View style={styles.userCard} testID="profile-user-card">
