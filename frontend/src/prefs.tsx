@@ -12,6 +12,8 @@ interface Prefs {
   notifOverdue: boolean;
   notifDigest: boolean;
   notifDaily: boolean;
+  digestHour: number;
+  digestMinute: number;
   notifWeekly: boolean;
   calendarSync: boolean;
   quietHours: boolean;
@@ -28,6 +30,8 @@ const DEFAULTS: Prefs = {
   notifOverdue: true,
   notifDigest: true,
   notifDaily: false,
+  digestHour: 9,
+  digestMinute: 0,
   notifWeekly: true,
   calendarSync: false,
   quietHours: true,

@@ -16,18 +16,18 @@ export const CATEGORY_TONE: Record<Category, PillTone> = {
   OTHER: "neutral",
 };
 
-export function AwaitCard({ item, onPress, showClosed }: { item: AwaitItem; onPress?: () => void; showClosed?: boolean }) {
+export function AwaitCard({ item, onPress, showClosed, footer }: { item: AwaitItem; onPress?: () => void; showClosed?: boolean; footer?: React.ReactNode }) {
   const styles = useStyles();
   const router = useRouter();
   const { colors } = useTheme();
   const due = dueLabel(item);
   const sub = item.state === "DONE" && showClosed && item.completedAt ? `Closed ${new Date(item.completedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : expectedLine(item);
   const turn = item.state === "MY_TURN" ? "My turn" : item.state === "THEIR_TURN" ? "Their turn" : null;
-  return (
+  const row = (
     <Pressable
       testID={`await-card-${item.id}`}
       onPress={onPress ?? (() => router.push(`/item/${item.id}`))}
-      style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [styles.card, footer ? styles.cardGrouped : null, pressed && { opacity: 0.85 }]}
     >
       <IconBox letter={item.ownerName.charAt(0).toUpperCase()} tone={CATEGORY_TONE[item.category] ?? "neutral"} size={44} />
       <View style={styles.body}>
@@ -60,6 +60,13 @@ export function AwaitCard({ item, onPress, showClosed }: { item: AwaitItem; onPr
       <Pill text={due.text} tone={due.tone} testID={`await-card-pill-${item.id}`} />
     </Pressable>
   );
+  if (!footer) return row;
+  return (
+    <View style={styles.group}>
+      {row}
+      {footer}
+    </View>
+  );
 }
 
 const useStyles = makeStyles((c) => ({
@@ -75,6 +82,8 @@ const useStyles = makeStyles((c) => ({
     paddingRight: spacing.md,
     marginBottom: spacing.sm + 2,
   },
+  cardGrouped: { marginBottom: 0, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomWidth: 0 },
+  group: {},
   body: { flex: 1, gap: 1 },
   owner: { fontSize: 15, fontWeight: "700", color: c.onSurface },
   what: { fontSize: 13.5, color: c.onSurfaceSecondary },

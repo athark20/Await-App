@@ -18,13 +18,13 @@ export async function runReminderTick() {
   if (!res.ok) return 0;
   const data = (await res.json()) as { fired: { awaitId: string; kind: string; title: string }[] };
   await configureNotifications();
-  // Refresh the 9 AM daily digest with today's due/overdue picture
+  // Refresh the daily digest at the user's chosen time with today's due/overdue picture
   try {
     const s = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/summary/today`, { headers: { Authorization: `Bearer ${token}` } });
     if (s.ok) {
       const raw = await storage.getItem<string | null>("await.prefs", null);
       const prefs = raw ? JSON.parse(raw) : {};
-      await scheduleDailySummary((await s.json()).body, !!prefs.notifDaily, prefs.quietHours !== false);
+      await scheduleDailySummary((await s.json()).body, !!prefs.notifDaily, prefs.digestHour ?? 9, prefs.digestMinute ?? 0);
     }
   } catch {}
   for (const f of data.fired) {

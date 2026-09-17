@@ -95,7 +95,7 @@ export async function cancelReminder(awaitId: string) {
   await Notifications.cancelScheduledNotificationAsync(awaitId).catch(() => {});
 }
 
-export async function scheduleDailySummary(body: string, enabled: boolean, quietHours = true) {
+export async function scheduleDailySummary(body: string, enabled: boolean, hour = 9, minute = 0) {
   if (Platform.OS === "web") return;
   await Notifications.cancelScheduledNotificationAsync("await-daily-summary").catch(() => {});
   if (!enabled) return;
@@ -107,7 +107,7 @@ export async function scheduleDailySummary(body: string, enabled: boolean, quiet
       data: { summary: true },
       ...(Platform.OS === "android" ? { channelId: CHANNELS.due } : {}),
     } as any,
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: quietHours ? 9 : 8, minute: 0 },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
   });
 }
 

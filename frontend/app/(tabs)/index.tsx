@@ -3,11 +3,13 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } 
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import dayjs from "dayjs";
-import { makeStyles, spacing, useTheme } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Chips, EmptyState, Icon, SectionTitle } from "@/src/components/ui";
 import { AwaitCard } from "@/src/components/AwaitCard";
+import { SnoozeSheet, type SnoozePick } from "@/src/components/SnoozeSheet";
+import { useToast } from "@/src/components/Toast";
 import { ErrorRetry, OfflineBanner } from "@/src/components/common";
-import { useAwaits, useStats } from "@/src/hooks";
+import { useAwaits, useAwaitAction, useStats } from "@/src/hooks";
 import { useAuth } from "@/src/auth";
 import { greeting, money } from "@/src/format";
 import { usesNativeTabs } from "@/src/navigation";
@@ -35,9 +37,9 @@ export default function Home() {
 
   useEffect(() => {
     if (prefs.notifDue) items.forEach((it) => scheduleReminder(it, prefs.quietHours));
-    api<{ body: string }>("/summary/today").then((s) => scheduleDailySummary(s.body, prefs.notifDaily, prefs.quietHours)).catch(() => {});
+    api<{ body: string }>("/summary/today").then((s) => scheduleDailySummary(s.body, prefs.notifDaily, prefs.digestHour, prefs.digestMinute)).catch(() => {});
     api<{ headline: string }>("/recap/weekly").then((r) => scheduleWeeklyRecap(r.headline, prefs.notifWeekly)).catch(() => {});
-  }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily, prefs.notifWeekly]);
+  }, [items, prefs.notifDue, prefs.quietHours, prefs.notifDaily, prefs.digestHour, prefs.digestMinute, prefs.notifWeekly]);
 
   // Recurring templates: create anything that's due, then refresh the list.
   useEffect(() => {
@@ -163,7 +165,7 @@ export default function Home() {
             {showOverdueSection ? (
               <>
                 <SectionTitle title="Overdue" count={groups.overdue.length} />
-                {groups.overdue.map((it) => <AwaitCard key={`o-${it.id}`} item={it} />)}
+                {groups.overdue.map((it) => <OverdueItem key={`o-${it.id}`} item={it} />)}
               </>
             ) : null}
             {groups.review.length > 0 && filter === "ALL" ? (
@@ -190,6 +192,55 @@ function Stat({ icon, label, value, color }: { icon: string; label: string; valu
   );
 }
 
+function OverdueItem({ item }: { item: AwaitItem }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const toast = useToast();
+  const action = useAwaitAction(item.id);
+  const [sheet, setSheet] = useState(false);
+
+  const snooze = (until: string, days: number, label: string) =>
+    action.mutate(
+      { path: "/snooze", json: { until, days } },
+      { onSuccess: () => { setSheet(false); toast.show(`Reminder set · ${label}`, "success"); } },
+    );
+  const quick = (days: number) => {
+    const at = dayjs().add(days, "day").hour(9).minute(0).second(0);
+    snooze(at.toISOString(), days, at.format("ddd, D MMM"));
+  };
+  const onPick = (p: SnoozePick) => snooze(p.until, p.days, dayjs(p.until).format("ddd, D MMM"));
+
+  return (
+    <>
+      <AwaitCard
+        item={item}
+        footer={
+          <View style={styles.qsRow} testID={`overdue-snooze-${item.id}`}>
+            <Icon name="alarm-outline" size={14} color={colors.muted} />
+            <QuickChip label="Tomorrow" onPress={() => quick(1)} />
+            <QuickChip label="+3 days" onPress={() => quick(3)} />
+            <QuickChip label="Next week" onPress={() => quick(7)} />
+            <Pressable style={styles.qsMore} onPress={() => setSheet(true)} hitSlop={8} testID={`overdue-snooze-more-${item.id}`}>
+              <Text style={styles.qsMoreText}>More</Text>
+              <Icon name="chevron-forward" size={12} color={colors.brandPrimary} />
+            </Pressable>
+          </View>
+        }
+      />
+      <SnoozeSheet visible={sheet} onClose={() => setSheet(false)} item={item} onPick={onPick} testID={`overdue-remind-${item.id}`} />
+    </>
+  );
+}
+
+function QuickChip({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useStyles();
+  return (
+    <Pressable style={({ pressed }) => [styles.qsChip, pressed && { opacity: 0.6 }]} onPress={onPress} hitSlop={6}>
+      <Text style={styles.qsChipText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   strip: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 4 },
@@ -210,4 +261,23 @@ const useStyles = makeStyles((c) => ({
   none: { color: c.muted, fontSize: 13.5, paddingVertical: 8 },
   reviewBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.purpleTint, borderRadius: 14, padding: 12, marginTop: 12 },
   reviewText: { flex: 1, color: c.onSurface, fontWeight: "600", fontSize: 13.5 },
+  qsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: c.surfaceSecondary,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: c.border,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 10,
+    paddingTop: 8,
+    marginBottom: spacing.sm + 2,
+  },
+  qsChip: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  qsChipText: { fontSize: 12.5, fontWeight: "600", color: c.onSurface },
+  qsMore: { flexDirection: "row", alignItems: "center", gap: 1, marginLeft: "auto", paddingVertical: 6, paddingHorizontal: 4 },
+  qsMoreText: { fontSize: 12.5, fontWeight: "700", color: c.brandPrimary },
 }));
