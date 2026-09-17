@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 9 hardening verified. BACKEND: 11/12 pytest cases in /app/backend/tests/test_iteration9.py PASS. Coverage: (1) alex login → 200 with session_token; wrong-password on a throwaway email → 401; hammering 11 wrong-password attempts on a fresh throwaway email → 11th returns 429 with detail.code 'RATE_LIMITED' (per-email 10/15min). (2) /api/auth/guest: 6-shot hammer produced 200s then a 429 (detail.code 'RATE_LIMITED') — per-IP 5/hour bucket working. (3) /ai/transcribe with ~21MB base64 (~15MB decoded) → 413 FILE_TOO_LARGE (pre-decode, fast); 1s silence WAV small payload → 200 with 'transcript' field. (4) /ai/extract with a real 70MB-inner zip-bomb DOCX (fresh user) → 413 FILE_TOO_LARGE (archive expansion cap works). Real python-docx small DOCX with 'ABC Insurance will send the claim response by 30 Sep' → 200 with extraction envelope. (5) POST /api/awaits {amount:-50} → response.amount is null; GET after → still null; DELETE cleanup succeeded. (6) OPTIONS /api/health with Origin https://example.com → 200/204, Access-Control-Allow-Origin='*', Access-Control-Allow-Credentials header absent. (7) GET /api/awaits and /api/stats with alex token WITHOUT X-Plan header → both 200. ONE FAILURE — /ai/extract oversized image_base64 (mime image/png) returned 500 (Gemini INVALID_ARGUMENT upstream) instead of expected 413 pre-decode. Root cause: run_extract() only calls decode_upload() inside the DOC_MIMES and PDF branches; for plain image_base64 with mime image/png, the raw base64 is forwarded straight to llm(image_b64=body.image_base64) without ever hitting the MAX_UPLOAD_BYTES size cap. FRONTEND regression (web 390x844): welcome-signin-link → login-email/password/submit with alex@example.com/password123 succeeds; notification-education-screen dismissed via not-now-button; Home renders with 5 seeded await-cards and summary strip; opened aw_f94227f0404a (Sameer, Send quotation) → item-details-screen loads with title/status/timeline; tab-add → add-manual-option → manual-add-screen; filled form-who-input=SecTest, form-what-input='Sec Test'; manual-save-button created → landed on Await Details with title 'Sec Test'; returned to Home which showed the new await-card-aw_b775b8a0a40a; opened it and via item-menu-button → item-menu-sheet-option-delete → delete-sheet-primary the item was deleted (toast 'Await deleted'); Home returned to original 5 cards. No red screens, zero console errors captured (only benign expo-notifications 'push token changes not fully supported on web' warnings — not errors, unchanged from iter 8).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/ai/extract",
+        "issue": "The 15MB pre-decode size cap (decode_upload) is bypassed for plain image_base64 uploads with mime image/png (or any non-DOC, non-PDF mime). Raw base64 is forwarded to llm(image_b64=...) unchecked. An oversized image request currently returns 500 (upstream Gemini INVALID_ARGUMENT) instead of the intended 413 FILE_TOO_LARGE, defeating the abuse-cost mitigation for that path. Suggested fix: at the top of run_extract() (or ai_extract()), if body.image_base64 is present call decode_upload(body.image_base64) once (or just len(b64) > MAX_UPLOAD_BYTES*4//3+4 → raise 413) BEFORE any LLM/provider work, regardless of mime_type. Reference: /app/backend/server.py:1217-1254 run_extract; only DOC_MIMES branch (line 1218-1220) and PDF branch (line 1237-1242) invoke decode_upload; the image branch at line 1244 sends raw body.image_base64 to llm() with no size check.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/ai/extract",
+        "issue": "AI_LIMIT (402) is checked BEFORE the pre-decode size cap when the cap DOES run (i.e. through decode_upload inside the DOC/PDF branches). Consequence: for a FREE user at quota, an oversized document returns 402 AI_LIMIT instead of 413 FILE_TOO_LARGE, which slightly hides the abuse-cap intent. Cheap fix: move a top-level size guard on body.image_base64 in ai_extract() before quota checks."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9.py",
+    "/app/test_reports/pytest/iteration9.xml"
+  ],
+  "action_items": [
+    "Fix /ai/extract to enforce the 15MB pre-decode size cap on body.image_base64 for ALL mime types (not just DOC_MIMES/PDF). Add: `if body.image_base64: decode_upload(body.image_base64)` (or an inline length check) at the top of ai_extract() BEFORE the quota checks, so oversized image_base64 returns 413 FILE_TOO_LARGE fast and never reaches Gemini.",
+    "Optional: reorder checks in ai_extract() so the pre-decode size guard runs BEFORE FREE quota (402 AI_LIMIT), so an oversized doc from a quota-exhausted free user still returns 413 (better security signal, cheaper reject)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:88-95 decode_upload is well-placed — pre-decode length check is O(1), avoids memory blowup. Fine.",
+    "server.py:98-106 check_zip_expansion iterates ZipFile.infolist() and sums file_size (uncompressed). This is safe — Python's zipfile reads only the central directory, doesn't materialize bytes. Zip-bomb assertion verified with a 70MB-inner deflate zip (compressed ~68KB), correctly rejected.",
+    "server.py:1244 image_base64 is passed to llm() without ANY size guard for non-DOC/non-PDF paths — SECURITY GAP (see backend_issues.critical).",
+    "server.py:1345 CORS: allow_credentials=False + allow_origins=['*'] is the correct hardened combo. OPTIONS preflight confirmed to return ACAO=* and no ACAC header.",
+    "server.py:527,547-548 amount normalisation on POST/PATCH: `(body.amount if body.amount and body.amount > 0 else None)` and PATCH `if upd['amount'] <= 0: upd['amount'] = None` — verified with amount=-50 returning null. Good.",
+    "server.py:204-205 login rate-limit uses BOTH per-IP (20/900s) and per-email (10/900s) buckets — order is per-IP first so alex's per-email bucket isn't touched by throwaway hammers. Verified 429 fires exactly on the 11th per-email attempt.",
+    "server.py:298-300 guest rate-limit 5/3600s per-IP — verified 429 appears within 6 attempts.",
+    "server.py:1259,1307,1327 all AI endpoints use rate_limit(f'ai:{user_id}', 30, 600, …) plus the HARD monthly ceiling — plan-independent AI burst limit is applied uniformly. Good.",
+    "server.py:1339-1341 /api/health is a bare GET without any header validation — the OPTIONS preflight is handled by Starlette's CORS middleware, so no explicit handler needed. Verified behavior."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9.py (new: 12 pytest cases across TestLoginAndRateLimit (3), TestGuestRateLimit (1), TestUploadSizeCap (3), TestDocxZipBomb (2), TestNegativeAmount (1), TestCorsPreflight (1), TestXPlanAbsentStillWorks (1))"
+  ],
+  "success_rate": {
+    "backend": "91.7% (11/12 iteration9 pytest — 1 failure documents the /ai/extract image-oversize 500 bug)",
+    "frontend": "100% of iteration 9 review regression items verified on Expo web 390x844: login → notif-education skip → Home with 5 seed cards → open item details → Add tab → manual create 'Sec Test' → item appears on Home → open + ⋮ menu → delete-sheet-primary → toast 'Await deleted' → Home returns to 5 cards. No red screens, no new console errors."
+  },
+  "seed_data_creation": "During run: (a) One throwaway email 'nobody+rl_<uuid>@await.local' was 401-hammered 11× to trip the per-email login rate-limiter — no user was actually registered under it. (b) A fresh random user 'test_<hex>@example.com' was registered via fresh_user fixture and used to exercise the DOCX flow; the fresh user's ai_extractions_used count was incremented once by the small-DOCX extraction. (c) An Await with ownerName 'Neg' amount=-50 was created and deleted (verified 200 delete). (d) Frontend: An Await 'SecTest — Sec Test' (aw_b775b8a0a40a) was created and deleted. No leftover data in alex's account.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iterations 1-8 backend green (66/66). Iteration 9: 11/12 pytest pass in test_iteration9.py. Remaining failure: TestUploadSizeCap::test_extract_413_when_image_oversized — /ai/extract does NOT enforce the 15MB pre-decode cap for image_base64 with non-DOC/non-PDF mime types (like image/png). Root cause pinpointed at server.py:1244 — image_base64 passed to llm() without decode_upload(). Once the main agent adds a top-level size guard on body.image_base64 in ai_extract() (before quota checks and before run_extract), this test should turn green — no test changes required. Rate-limiter buckets are in-memory per process — if you retest and hit stale 429s, restart backend: `sudo supervisorctl restart backend`. The login test intentionally uses a per-run throwaway email so it never impacts alex's per-email bucket. Alex's per-IP login bucket got ~1 hit from the frontend regression + 1 from test_01 + 11 from test_03 = ~13 of 20 in the 15-min window — safely under the 20 cap. Guest per-IP bucket may still be saturated from prior iterations — that's tolerated by TestGuestRateLimit which only asserts a 429 appears in the 6-shot burst.",
+  "rca_of_issue": "BUG: /api/ai/extract accepts image_base64 up to any size for image/* mime types. REPRO: POST /api/ai/extract with headers Authorization: Bearer <fresh_user_token>, body {image_base64: 'A'*21_000_000, mime_type: 'image/png', source_type: 'IMAGE'}. Expected: 413 with detail.code 'FILE_TOO_LARGE'. Actual: 500 (server exception; upstream Gemini responds 400 'Unable to process input image'). ROOT CAUSE: In /app/backend/server.py, decode_upload() (which raises 413 pre-decode) is invoked ONLY inside the DOC_MIMES branch (line 1219) and the PDF branch (line 1240) of run_extract(). The plain image branch at line 1244 passes body.image_base64 directly into llm() without any size validation. MITIGATION: Add an early size guard in ai_extract() at server.py:1258, e.g. `if body.image_base64: decode_upload(body.image_base64)` before the quota check (`if user.get('ai_extractions_used'...)`). This raises 413 FILE_TOO_LARGE for oversized image_base64 uniformly, before touching any LLM provider or quota logic."
+}

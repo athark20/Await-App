@@ -26,6 +26,11 @@ logger = logging.getLogger("await")
 FREE_ACTIVE_LIMIT = 10
 FREE_AI_EXTRACTIONS = 5
 FREE_AI_FOLLOWUPS = 3
+# Abuse ceilings that apply to EVERY account regardless of plan (plan gating itself is client-side via RevenueCat).
+HARD_AI_EXTRACTIONS_PER_MONTH = 300
+HARD_AI_FOLLOWUPS_PER_MONTH = 150
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024      # decoded size of any uploaded image/PDF/doc/audio
+MAX_ARCHIVE_EXPANSION = 60 * 1024 * 1024  # total uncompressed bytes allowed inside DOCX/XLSX zips
 NEEDS_REVIEW_IGNORED = 3
 NEEDS_REVIEW_SILENT_DAYS = 8
 
@@ -56,6 +61,49 @@ def parse_dt(v):
 
 def uid(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+# ---------------------------------------------------------------- abuse controls
+import collections, time as _time
+
+_buckets: dict[str, collections.deque] = collections.defaultdict(collections.deque)
+
+
+def rate_limit(key: str, limit: int, window_s: int, message: str = "Too many requests. Please slow down."):
+    """Sliding-window limiter (per process). Raises 429 when `limit` events happened within `window_s`."""
+    q = _buckets[key]
+    t = _time.monotonic()
+    while q and t - q[0] > window_s:
+        q.popleft()
+    if len(q) >= limit:
+        raise HTTPException(429, detail={"code": "RATE_LIMITED", "message": message})
+    q.append(t)
+
+
+def client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    return (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown"))
+
+
+def decode_upload(b64: str) -> bytes:
+    """Base64 -> bytes with a size cap enforced BEFORE decoding (4/3 expansion)."""
+    if len(b64) > MAX_UPLOAD_BYTES * 4 // 3 + 4:
+        raise HTTPException(413, detail={"code": "FILE_TOO_LARGE", "message": "That file is too large (max 15 MB)."})
+    try:
+        return base64.b64decode(b64, validate=False)
+    except Exception:
+        raise HTTPException(400, detail={"code": "BAD_UPLOAD", "message": "Couldn't read that file."})
+
+
+def check_zip_expansion(data: bytes):
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            total = sum(i.file_size for i in z.infolist())
+    except zipfile.BadZipFile:
+        raise HTTPException(415, detail={"code": "UNSUPPORTED_FILE", "message": "This file looks corrupted."})
+    if total > MAX_ARCHIVE_EXPANSION:
+        raise HTTPException(413, detail={"code": "FILE_TOO_LARGE", "message": "That document is too large to read."})
 
 
 def clean(doc: dict):
@@ -133,7 +181,9 @@ async def get_user(request: Request) -> dict:
         await db.users.update_one({"user_id": u["user_id"]}, {"$set": {"usage_month": month, "ai_extractions_used": 0, "ai_followups_used": 0}})
         u["ai_extractions_used"] = 0
         u["ai_followups_used"] = 0
-    # Plan is verified client-side by the RevenueCat SDK (entitlement `pro`) and passed as a header.
+    # Plan gating is client-side by design (RevenueCat SDK entitlement `pro`; see /app/memory/revenuecat.md).
+    # The header only relaxes FREE convenience limits; cost-bearing AI routes are protected by the
+    # plan-independent HARD_* ceilings and per-user rate limits, so a forged header buys no server cost.
     u["plan"] = "PRO" if request.headers.get("X-Plan") == "PRO" else "FREE"
     return u
 
@@ -150,7 +200,9 @@ async def register(body: RegisterIn):
 
 
 @api.post("/auth/login")
-async def login(body: LoginIn):
+async def login(body: LoginIn, request: Request):
+    rate_limit(f"login:{client_ip(request)}", 20, 900, "Too many sign-in attempts. Try again in a few minutes.")
+    rate_limit(f"login:{body.email.lower()}", 10, 900, "Too many sign-in attempts for this account. Try again in a few minutes.")
     u = await db.users.find_one({"email": body.email.lower()}, {"_id": 0})
     if not u or not u.get("password_hash") or not bcrypt.checkpw(body.password.encode(), u["password_hash"].encode()):
         raise HTTPException(401, "Incorrect email or password")
@@ -243,7 +295,8 @@ async def logout(request: Request):
 
 
 @api.post("/auth/guest")
-async def guest():
+async def guest(request: Request):
+    rate_limit(f"guest:{client_ip(request)}", 5, 3600, "Too many guest accounts from this network. Please sign in instead.")
     u = await create_user(f"guest_{uuid.uuid4().hex[:8]}@await.local", "Guest")
     return {"session_token": await mint_session(u["user_id"]), "user": public_user(u)}
 
@@ -471,7 +524,7 @@ async def create_await(body: AwaitIn, user=Depends(get_user)):
         "sourceEvidenceIds": [], "createdAt": now(), "updatedAt": now(), "completedAt": None, "lastReminderAt": None,
         "nextReminderAt": (exp - timedelta(days=body.reminderLeadDays)) if exp and body.reminderLeadDays > 0 else exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
         "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
-        "amount": body.amount, "currency": (body.currency or "INR").upper()[:3],
+        "amount": (body.amount if body.amount and body.amount > 0 else None), "currency": (body.currency or "INR").upper()[:3],
     }
     await db.awaits.insert_one(doc)
     await add_event(doc["id"], user["user_id"], "CREATED", f"Created from {doc['sourceType'].replace('_', ' ').title()}")
@@ -751,6 +804,9 @@ def fmt_money(amount, currency):
 async def owner_followup_draft(name: str, body: FollowupIn, user=Depends(get_user)):
     """One follow-up message covering everything this owner still owes (money or not)."""
     items = await owner_open_items(name, user)
+    rate_limit(f"ai:{user['user_id']}", 30, 600, "You're going fast. Give the AI a minute.")
+    if user.get("ai_followups_used", 0) >= HARD_AI_FOLLOWUPS_PER_MONTH:
+        raise HTTPException(429, detail={"code": "AI_CEILING", "limit": HARD_AI_FOLLOWUPS_PER_MONTH, "message": "Monthly AI limit reached."})
     if user.get("plan", "FREE") == "FREE" and user.get("ai_followups_used", 0) >= FREE_AI_FOLLOWUPS:
         raise HTTPException(402, detail={"code": "AI_LIMIT", "limit": FREE_AI_FOLLOWUPS})
     lines = []
@@ -1130,6 +1186,8 @@ DOC_MIMES = {
 
 def extract_document_text(data: bytes, mime: str, file_name: str | None) -> str:
     kind = DOC_MIMES.get(mime) or (file_name or "").rsplit(".", 1)[-1].lower()
+    if kind in ("docx", "xlsx"):
+        check_zip_expansion(data)
     if kind == "docx":
         import docx
         d = docx.Document(io.BytesIO(data))
@@ -1158,7 +1216,7 @@ def extract_document_text(data: bytes, mime: str, file_name: str | None) -> str:
 
 async def run_extract(body: ExtractIn):
     if body.mime_type in DOC_MIMES and body.image_base64 and not body.text:
-        body.text = extract_document_text(base64.b64decode(body.image_base64), body.mime_type, body.file_name)[:12000]
+        body.text = extract_document_text(decode_upload(body.image_base64), body.mime_type, body.file_name)[:12000]
         body.image_base64 = None
         if not body.text.strip():
             return {"confidence": 0}
@@ -1179,7 +1237,7 @@ async def run_extract(body: ExtractIn):
     if body.mime_type == "application/pdf" and body.image_base64 and not body.text:
         provider = "gemini"
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        tmp.write(base64.b64decode(body.image_base64))
+        tmp.write(decode_upload(body.image_base64))
         tmp.close()
         file = (tmp.name, "application/pdf")
     try:
@@ -1198,10 +1256,15 @@ async def run_extract(body: ExtractIn):
 
 @api.post("/ai/extract")
 async def ai_extract(body: ExtractIn, user=Depends(get_user)):
+    rate_limit(f"ai:{user['user_id']}", 30, 600, "You're going fast. Give the AI a minute.")
+    if user.get("ai_extractions_used", 0) >= HARD_AI_EXTRACTIONS_PER_MONTH:
+        raise HTTPException(429, detail={"code": "AI_CEILING", "limit": HARD_AI_EXTRACTIONS_PER_MONTH, "message": "Monthly AI limit reached."})
     if user.get("plan", "FREE") == "FREE" and user.get("ai_extractions_used", 0) >= FREE_AI_EXTRACTIONS:
         raise HTTPException(402, detail={"code": "AI_LIMIT", "limit": FREE_AI_EXTRACTIONS})
     if not (body.text or body.image_base64 or body.url):
         raise HTTPException(400, "Nothing to analyze")
+    if body.image_base64 and len(body.image_base64) > MAX_UPLOAD_BYTES * 4 // 3 + 4:
+        raise HTTPException(413, detail={"code": "FILE_TOO_LARGE", "message": "That file is too large (max 15 MB)."})
     data = await run_extract(body)
     await db.users.update_one({"user_id": user["user_id"]}, {"$inc": {"ai_extractions_used": 1}})
     conf = float(data.get("confidence") or 0)
@@ -1243,6 +1306,9 @@ async def ai_extract(body: ExtractIn, user=Depends(get_user)):
 @api.post("/awaits/{await_id}/followup-draft")
 async def followup_draft(await_id: str, body: FollowupIn, user=Depends(get_user)):
     a = await get_owned(await_id, user)
+    rate_limit(f"ai:{user['user_id']}", 30, 600, "You're going fast. Give the AI a minute.")
+    if user.get("ai_followups_used", 0) >= HARD_AI_FOLLOWUPS_PER_MONTH:
+        raise HTTPException(429, detail={"code": "AI_CEILING", "limit": HARD_AI_FOLLOWUPS_PER_MONTH, "message": "Monthly AI limit reached."})
     if user.get("plan", "FREE") == "FREE" and user.get("ai_followups_used", 0) >= FREE_AI_FOLLOWUPS:
         raise HTTPException(402, detail={"code": "AI_LIMIT", "limit": FREE_AI_FOLLOWUPS})
     exp = parse_dt(a.get("expectedAt"))
@@ -1260,9 +1326,10 @@ async def followup_draft(await_id: str, body: FollowupIn, user=Depends(get_user)
 
 @api.post("/ai/transcribe")
 async def transcribe(body: TranscribeIn, user=Depends(get_user)):
+    rate_limit(f"ai:{user['user_id']}", 30, 600, "You're going fast. Give the AI a minute.")
     ext = ".m4a" if "m4a" in body.mime_type or "mp4" in body.mime_type else ".webm" if "webm" in body.mime_type else ".wav"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-    tmp.write(base64.b64decode(body.audio_base64))
+    tmp.write(decode_upload(body.audio_base64))
     tmp.close()
     try:
         text = await llm("Transcribe the audio exactly. Output only the transcript text.", "Transcribe this recording.", "gemini", file=(tmp.name, body.mime_type))
@@ -1277,7 +1344,7 @@ async def health():
 
 
 app.include_router(api)
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_credentials=False, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 @app.on_event("startup")

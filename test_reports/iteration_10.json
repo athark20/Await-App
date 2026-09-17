@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 10 SECURITY HARDENING VERIFIED — 12/12 GREEN on /app/backend/tests/test_iteration9.py AND 66/66 GREEN on full backend regression (test_await_backend + iteration3-8). The single remaining bug from iteration 9 (universal MAX_UPLOAD_BYTES enforcement in /api/ai/extract) is now fixed. Server.py lines 1266-1267 now perform a top-level base64 length check `if body.image_base64 and len(body.image_base64) > MAX_UPLOAD_BYTES*4//3+4: raise 413 FILE_TOO_LARGE` placed right after the 'Nothing to analyze' guard and before run_extract() — so oversized image_base64 (~21MB base64 ≈ 15.75MB decoded) with mime image/png now returns 413 {code:'FILE_TOO_LARGE'} instantly, regardless of mime_type. Verified in TestUploadSizeCap::test_extract_413_when_image_oversized (PASS). No regression: TestUploadSizeCap::test_transcribe_small_wav_still_ok still 200 with 'transcript'; TestDocxZipBomb::test_small_docx_still_extracts still 200 with extraction envelope; TestDocxZipBomb::test_zip_bomb_returns_413 (70MB inner) still 413; TestLoginAndRateLimit (per-email 10/15min → 11th=429), TestGuestRateLimit (per-IP 5/hour → 429 within 6 shots), TestNegativeAmount (amount=-50 → null persisted), TestCorsPreflight (ACAO='*', no ACAC header), TestXPlanAbsentStillWorks (200 without X-Plan header) all still green. Full regression across iter 3-8 endpoints (auth, awaits CRUD, AI extract/followup/transcribe, DOCX/XLSX/PDF extract, password reset, weekly recap, snooze, stats money/monthly, owners, category insights, reminder lead days, calendar_event_id patch) — 66/66 PASSED in 31.8s.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9.py",
+    "/app/test_reports/pytest/iteration10.xml",
+    "/app/test_reports/pytest/iteration10_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:1266-1267 — fix is correctly placed: after 'Nothing to analyze' 400 guard and before run_extract(); operates on the raw base64 string length (O(1), no decode), matching the same pre-decode strategy used by decode_upload(). Covers ALL mime types (image/*, application/*, etc.) — closes the gap.",
+    "server.py:1259-1263 order is now: (a) AI burst rate-limit, (b) HARD monthly ceiling 429, (c) FREE quota 402, (d) 'Nothing to analyze' 400, (e) NEW size cap 413. Note: (c) FREE quota 402 still fires BEFORE (e) size 413. Minor cosmetic — for a FREE-quota-exhausted user posting an oversized image, they'll see 402 AI_LIMIT rather than 413 FILE_TOO_LARGE. Both are hard rejects and no LLM call is made either way, so security posture is equivalent. Not blocking.",
+    "server.py:88-95 decode_upload also raises 413 pre-decode inside run_extract() for DOC_MIMES and PDF paths — the top-level check in ai_extract() is now a belt-and-braces guard, which is fine (idempotent, no double-charge)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% — 12/12 iteration9 + 66/66 regression = 78/78 pytest cases green",
+    "frontend": "n/a — backend-only testing per review_request"
+  },
+  "seed_data_creation": "Fresh throwaway users test_<hex>@example.com created via fresh_user fixture for size-cap and zip-bomb DOCX cases (each incremented ai_extractions_used by at most 1). One Await 'Neg amount=-50' created and deleted during TestNegativeAmount. No leftover data in alex's account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "SECURITY HARDENING COMPLETE. All 78 backend pytest cases green (12 iter9 + 66 regression). Note when running the FULL suite in a single pytest invocation, tests interact: TestLoginAndRateLimit test_03 hammers the per-email login bucket 11× → all downstream tests that touch alex login within the 15-min window will 429. Workaround: run test_iteration9.py separately, OR restart backend (`sudo supervisorctl restart backend`) between test suite invocations to clear in-memory rate-limit buckets. This is expected behavior — the rate-limit itself is working correctly. Iteration 9's original bug (image_base64 size gap in /ai/extract) is fully fixed at server.py:1266-1267.",
+  "rca_of_issue": "PREVIOUS BUG (now FIXED): /api/ai/extract accepted image_base64 of any size for non-DOC/non-PDF mime types (image/*, etc.). REPRO (pre-fix): POST /api/ai/extract with headers Authorization: Bearer <fresh_user_token>, body {image_base64: 'A'*21_000_000, mime_type: 'image/png', source_type: 'IMAGE'} → 500. FIX APPLIED: Added top-level guard in ai_extract() at /app/backend/server.py:1266-1267: `if body.image_base64 and len(body.image_base64) > MAX_UPLOAD_BYTES * 4 // 3 + 4: raise HTTPException(413, detail={'code': 'FILE_TOO_LARGE', 'message': 'That file is too large (max 15 MB).'})`. Placed after the 'Nothing to analyze' 400 guard and BEFORE run_extract() so no LLM call is ever made for oversized payloads. VERIFIED: TestUploadSizeCap::test_extract_413_when_image_oversized now returns 413 {code:'FILE_TOO_LARGE'} for a 21MB base64 image/png payload from a fresh user. Regression clean — 66/66 other backend tests still pass."
+}

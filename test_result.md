@@ -116,3 +116,9 @@ Implemented: /stats/categories + CategoryInsights on stats; templates CRUD/run/t
 
 ## Iteration 8 (main agent)
 Implemented: QuickVoice on Add tab (one-tap record → transcribe → extract → confirm); calendar sync (expo-calendar device events + Google Calendar link, item menu options, prefs.calendarSync auto-add, PATCH calendarEventId). needs_retesting: Add tab UI, item menu calendar options (web opens Google Calendar URL), preferences toggle, backend PATCH calendarEventId. Device calendar + mic recording are native-only.
+
+## Iteration 9 (security hardening, main agent)
+Security audit findings addressed in server.py: plan-independent monthly AI ceilings (300 extractions / 150 follow-ups) + per-user AI burst limit (30/10min) on /ai/extract, followup-draft (item + owner), /ai/transcribe; login throttle (20/IP, 10/email per 15 min → 429); guest creation 5/IP/hour; upload size cap 15MB (413 FILE_TOO_LARGE before decode) + DOCX/XLSX zip expansion bound; CORS allow_credentials=False; negative amount normalised on create. X-Plan header intentionally remains client-side gating per RevenueCat playbook (no server pro tracking). needs_retesting: login still works, guest rate limit, oversized upload 413, regression of core flows.
+
+## Iteration 10 (security retest, testing agent) — 2026-06
+Fixed the one open iter-9 bug: /api/ai/extract now enforces MAX_UPLOAD_BYTES (15MB) for ALL mime types (universal 413 FILE_TOO_LARGE before run_extract, not just DOC/PDF). Testing agent: test_iteration9 12/12 PASS + full regression 66/66 PASS (78 total green). Login/guest/AI-burst throttles + CORS + X-Plan handling unchanged and passing. Security hardening COMPLETE and shippable. Non-blocking note: FREE 402 quota check fires before 413 size check but both hard-reject before any LLM call (equivalent security posture).
