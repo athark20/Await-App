@@ -63,7 +63,7 @@ export default function Help() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 12 },
   card: { backgroundColor: c.brandTertiary, borderRadius: radius.lg, padding: spacing.lg, gap: 4 },
   cardTitle: { fontSize: 15, fontWeight: "700", color: c.onSurface },

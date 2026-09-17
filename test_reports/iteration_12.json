@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 12 (Snooze Undo + Per-Await Reminder Time + Time-of-day theme) — ALL BACKEND + ALL FRONTEND FLOWS PASS. Backend: 7/7 new iteration_12 tests green, 12/12 iteration_9 security regression still green, 66/66 full regression (test_await_backend + iteration3-8) green after a clean backend restart — combined 85/85 pytest cases. Verified: (a) POST /api/awaits/{id}/reminder-restore restores nextReminderAt to the original value after a snooze and sets ignoredReminderCount (clamped >= 0); (b) POST /api/awaits with reminderTime='18:00' persists reminderTime and shifts nextReminderAt clock to 18:00 while preserving the date; (c) PATCH /api/awaits/{id} {reminderTime:'21:00'} persists 21:00 and shifts nextReminderAt to 21:00; PATCH {reminderTime:''} normalizes to null and returns null on subsequent GET. Frontend (Expo web preview, mobile viewport 390x844): (1) Snooze Undo — on Home Overdue, tapping '+3 days' on card aw_10ab6d7fdc46 fires POST /snooze → 200, shows toast 'Reminder set · Sun, 20 Sep' with a visible testID=toast-action 'Undo' button; tapping Undo fires POST /reminder-restore → 200 and displays second toast 'Snooze undone'; (2) Per-Await Reminder time in item detail — opening item aw_38a6ca0438a2 → tap testID=item-menu-button → select 'Reminder time' → remtime-sheet opens with Default/9:00 AM/12:00 PM/6:00 PM/9:00 PM options; selecting 6:00 PM fires PATCH /awaits/{id} with body {\"reminderTime\":\"18:00\"} and success toast 'Reminders at 6:00 PM'; (3) Add form — /add → Manual entry shows a 'Reminder time (optional)' row with all 5 testIDs form-remtime-default, form-remtime-09:00, form-remtime-12:00, form-remtime-18:00, form-remtime-21:00; tapping 6:00 PM highlights it (blue border) and the helper text updates to 'Reminders for this item nudge you at 6:00 PM.'; (4) Time-of-day theme — Profile → Preferences shows all 4 options: appearance-system, appearance-light, appearance-dark, appearance-timeofday. Selecting Light → cream/white surface with dark text; Dark → dark navy surface with light text; Auto → dim evening palette with a live gradient background (verified via computed style: linear-gradient(rgb(42,54,82), rgb(28,39,64) 55%, rgb(20,29,48) 100%)). App did not crash on any switch. No React Native red screens observed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/test_reports/pytest/iteration12.xml",
+    "/app/test_reports/pytest/iteration12_sec.xml",
+    "/app/test_reports/pytest/iteration12_full.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:98-106 with_time() — clean helper: parses HH:mm safely, silently returns the original dt on parse failure. If dt has no tzinfo the return preserves naive/aware status. OK.",
+    "server.py:544 create — nextReminderAt = with_time((exp - lead_days) if reminderLeadDays>0 else exp, body.reminderTime). Correct order: apply lead first, then override clock. Verified via test_create_with_reminder_time_1800 (18:00 applied on top of expectedAt date).",
+    "server.py:579-584 patch — 'reminderTime' clearing logic uses `upd.get('reminderTime', a.get('reminderTime')) or None` which coerces empty string '' to None. Good — this matches the frontend saveReminderTime('') 'Default' path in item/[id].tsx:147-152. Verified via test_patch_sets_reminder_time_and_shifts_next_reminder.",
+    "server.py:631-638 reminder_restore — parses body.nextReminderAt via parse_dt (allows null), clamps ignoredReminderCount>=0 with max(0, ...), writes REMINDER_SCHEDULED event 'Snooze undone — reminder restored'. Belt-and-braces. Verified.",
+    "app/(tabs)/index.tsx:202-222 & app/item/[id].tsx:92-112 — capture `prev = { nextReminderAt, ignoredReminderCount }` BEFORE mutation, so Undo restores the pre-snooze values even after react-query refetch replaces the item. Correct closure over prev. Good.",
+    "components/Toast.tsx:20 — action toasts stay 5000ms (vs 2600ms default) to give the user a reasonable window to tap Undo. Reasonable choice; no test needed.",
+    "components/AwaitForm.tsx:229-237 — presets use key 'HH:mm' with a `sel = value.reminderTime === p.key` comparison. Note the 'Default' preset uses key `''` (empty string) — verified in DOM (form-remtime-default). Selected state 'Default' means reminderTime is stored as empty string in form state; the toAwaitCreate() mapper passes it through as reminderTime: '' — the backend AwaitCreate model has `reminderTime: Optional[str] = None`, so this will send '' on the wire, which pydantic accepts as a string. Not causing observable issues (with_time('') returns dt unchanged), but for cleanliness consider mapping '' -> null in toAwaitCreate/toAwaitPatch. NON-BLOCKING.",
+    "prefs.tsx / theme.ts — 'timeofday' Appearance is added as a 4th enum value; makeStyles must be re-invoked when appearance changes for the gradient to re-render. Verified in browser: switching between light/dark/auto instantly re-styles the Preferences screen without navigation. Good."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% — 7/7 iteration_12 + 12/12 iteration_9 security + 66/66 regression = 85/85 pytest cases green",
+    "frontend": "100% — 4/4 review flows verified (snooze-undo, item-menu reminder-time, add-form reminder-time, appearance-timeofday+gradient)"
+  },
+  "seed_data_creation": "Test-only awaits created and deleted per-test in test_iteration12.py (prefixed TEST_ where relevant). During frontend testing on alex@example.com: (1) item aw_10ab6d7fdc46 (Amazon) was snoozed +3 days then Undo'd — net-zero change (state restored); (2) item aw_38a6ca0438a2 (Rahul) had reminderTime PATCHed to '18:00' via item-detail flow — this is now persisted on Alex's account. Main agent may want to reset via PATCH {reminderTime:''} if a clean baseline is desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration_12 features are fully green end-to-end. Auth flow (Welcome → 'welcome-signin-link' → login-email-input + login-password-input + login-submit-button, then dismiss 'Not now' onboarding) is unchanged. Backend rate-limit in-memory buckets are shared across parallel workers; if you run the FULL 7-file regression together and see one flake on TestStatsRecapMoney::test_stats_has_money_fields (owed accumulation across concurrent alex writes) or a 429 wave, `sudo supervisorctl restart backend && sleep 8` before re-running — clean state gets 66/66 green (already re-verified this iteration). New endpoints to remember: POST /api/awaits/{id}/reminder-restore body={nextReminderAt, ignoredReminderCount}; reminderTime is now a first-class field on POST/PATCH /api/awaits and on the response envelope. Frontend testIDs added: toast-action, remtime-sheet, appearance-timeofday, form-remtime-{default,09:00,12:00,18:00,21:00}. Overdue snooze quick-chips continue to work as in iteration_11.",
+  "rca_of_issue": "N/A — no bugs found. All acceptance criteria pass."
+}

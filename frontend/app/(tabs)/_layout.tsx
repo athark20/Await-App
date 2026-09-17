@@ -46,7 +46,7 @@ export default function TabsLayout() {
         },
         tabBarItemStyle: { alignSelf: "center" },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-        sceneStyle: { backgroundColor: colors.surface },
+        sceneStyle: { backgroundColor: "transparent" },
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: ({ color, focused }) => <Icon name={focused ? "home" : "home-outline"} size={22} color={color} />, tabBarButtonTestID: "tab-home" }} />

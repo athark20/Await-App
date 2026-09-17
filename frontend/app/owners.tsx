@@ -58,7 +58,7 @@ export default function Owners() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.lg, gap: 10, paddingTop: 4 },
   summary: { fontSize: 13, color: c.muted, marginBottom: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.md },

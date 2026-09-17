@@ -207,7 +207,7 @@ export function RemindLaterSheet({ visible, onClose, onPick, item }: { visible: 
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 12 },
   title: { fontSize: 24, fontWeight: "800", color: c.onSurface, textAlign: "center" },
   sub: { fontSize: 15, color: c.muted, textAlign: "center", marginBottom: 4 },

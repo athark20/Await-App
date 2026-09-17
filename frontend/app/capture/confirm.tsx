@@ -31,7 +31,7 @@ export default function Confirm() {
   const ex = payload?.extraction;
   const [form, setForm] = useState<AwaitFormValue>(() =>
     ex
-      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "", amount: ex.amount ? String(ex.amount) : "", currency: ex.currency ?? "INR", reminderLeadDays: 0 }
+      ? { who: ex.who ?? "", what: ex.what ?? "", expectedAt: ex.expected_at ? new Date(ex.expected_at).toISOString() : (parseExpectedPhrase(ex.expected_text)?.toISOString() ?? null), expectedText: ex.expected_text ?? "", category: ex.category ?? "OTHER", state: ex.suggested_state ?? "THEIR_TURN", notes: "", amount: ex.amount ? String(ex.amount) : "", currency: ex.currency ?? "INR", reminderLeadDays: 0, reminderTime: null }
       : emptyForm(),
   );
   const [saving, setSaving] = useState(false);
@@ -146,7 +146,7 @@ export default function Confirm() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 16 },
   sourceCard: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, gap: 10 },
   sourceImage: { width: "100%", height: 180, borderRadius: radius.md, backgroundColor: c.surfaceTertiary },

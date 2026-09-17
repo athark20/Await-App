@@ -71,7 +71,7 @@ export default function NeedsReview() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 12 },
   sub: { color: c.muted, fontSize: 14 },
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: 12, gap: 10 },

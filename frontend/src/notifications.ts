@@ -70,8 +70,12 @@ export async function scheduleReminder(item: AwaitItem, quietHours = true) {
   const when = item.nextReminderAt ?? item.expectedAt;
   if (!when) return;
   let at = dayjs(when);
+  if (item.reminderTime) {
+    const [h, m] = item.reminderTime.split(":").map((x) => parseInt(x, 10));
+    if (Number.isFinite(h) && Number.isFinite(m)) at = at.hour(h).minute(m).second(0);
+  }
   if (at.isBefore(dayjs())) at = dayjs().add(10, "second");
-  if (quietHours && inQuietHours(at)) at = at.hour(9).minute(0);
+  if (quietHours && !item.reminderTime && inQuietHours(at)) at = at.hour(9).minute(0);
   if (at.isBefore(dayjs())) at = at.add(1, "day");
   const overdue = item.attentionState === "OVERDUE";
   await Notifications.cancelScheduledNotificationAsync(item.id).catch(() => {});

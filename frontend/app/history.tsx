@@ -28,7 +28,7 @@ export default function History() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 10 },
   sub: { color: c.muted, fontSize: 13.5, marginBottom: 4 },
 }));

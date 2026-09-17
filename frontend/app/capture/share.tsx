@@ -143,7 +143,7 @@ export function FreeLimitAi({ visible, onClose, onManual }: { visible: boolean; 
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 10 },
   metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   received: { fontSize: 15, fontWeight: "700", color: c.onSurface },

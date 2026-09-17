@@ -118,7 +118,7 @@ function Tile({ label, value }: { label: string; value: number | string }) {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 12 },
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg },
   big: { fontSize: 28, fontWeight: "800", color: c.onSurface },

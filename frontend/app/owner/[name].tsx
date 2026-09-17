@@ -138,7 +138,7 @@ function Tile({ label, value, color }: { label: string; value: string; color: st
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.lg, gap: 10, paddingTop: 4 },
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, gap: 12 },
   heroRow: { flexDirection: "row", alignItems: "center", gap: 14 },

@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from "@/src/auth";
 import { PrefsProvider, usePrefs } from "@/src/prefs";
 import { ToastProvider } from "@/src/components/Toast";
 import { useTheme } from "@/src/theme";
+import { AppBackground } from "@/src/components/AppBackground";
 import { configureNotifications } from "@/src/notifications";
 import { handleIncomingUrl } from "@/src/share-intent";
 import { api } from "@/src/api";
@@ -93,8 +94,9 @@ function Gate() {
 
   return (
     <>
-      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface }, animation: "slide_from_right" }}>
+      <StatusBar style={scheme === "light" ? "dark" : "light"} />
+      <AppBackground />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" }, animation: "slide_from_right" }}>
         <Stack.Protected guard={!!user}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />

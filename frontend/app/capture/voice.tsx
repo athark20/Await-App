@@ -114,7 +114,7 @@ export default function Voice() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { flex: 1, paddingHorizontal: spacing.xl, gap: 12 },
   title: { fontSize: 22, fontWeight: "800", color: c.onSurface, textAlign: "center" },
   sub: { fontSize: 14, color: c.muted, textAlign: "center" },

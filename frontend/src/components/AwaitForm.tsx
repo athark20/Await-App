@@ -21,16 +21,17 @@ export interface AwaitFormValue {
   amount: string; // raw digits typed by the user; "" = no amount
   currency: string;
   reminderLeadDays: number; // >0 = remind this many days before the promised date
+  reminderTime: string | null; // preferred nudge time "HH:mm" for this item, or null = default
 }
 
 export function emptyForm(): AwaitFormValue {
-  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "", amount: "", currency: "INR", reminderLeadDays: 0 };
+  return { who: "", what: "", expectedAt: null, expectedText: "", category: "OTHER", state: "THEIR_TURN", notes: "", amount: "", currency: "INR", reminderLeadDays: 0, reminderTime: null };
 }
 
 /** Body fields for POST/PATCH /awaits derived from the form's amount + currency. */
 export function amountPayload(v: AwaitFormValue) {
   const n = parseFloat(v.amount.replace(/[^0-9.]/g, ""));
-  return { amount: Number.isFinite(n) && n > 0 ? n : null, currency: v.currency || "INR", reminderLeadDays: v.reminderLeadDays || 0 };
+  return { amount: Number.isFinite(n) && n > 0 ? n : null, currency: v.currency || "INR", reminderLeadDays: v.reminderLeadDays || 0, reminderTime: v.reminderTime };
 }
 
 type OwnerRow = { ownerName: string; key: string; open: number; overdue: number; done: number; onTimeRate: number | null; avgDaysLate: number };
@@ -87,6 +88,25 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
   const set = (p: Partial<AwaitFormValue>) => onChange({ ...value, ...p });
   const [typed, setTyped] = useState(value.expectedAt ? dayjs(value.expectedAt).format("DD/MM/YYYY") : value.expectedText || "");
   const [showPicker, setShowPicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const reminderPresets: { key: string | null; label: string }[] = [
+    { key: null, label: "Default" },
+    { key: "09:00", label: "9:00 AM" },
+    { key: "12:00", label: "12:00 PM" },
+    { key: "18:00", label: "6:00 PM" },
+    { key: "21:00", label: "9:00 PM" },
+  ];
+  const reminderTimeLabel = (t: string | null) => {
+    if (!t) return null;
+    const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+    return dayjs().hour(h).minute(m).format("h:mm A");
+  };
+  const onTimePicked = (e: DateTimePickerEvent, d?: Date) => {
+    setShowTimePicker(false);
+    if (e.type === "dismissed" || !d) return;
+    set({ reminderTime: dayjs(d).format("HH:mm") });
+  };
 
   const quick: [string, () => dayjs.Dayjs][] = [
     ["Today", () => dayjs().startOf("day")],
@@ -199,6 +219,36 @@ export function AwaitForm({ value, onChange, showNotes = true, showState = true,
             );
           })}
         </View>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={styles.label}>Reminder time (optional)</Text>
+        <View style={styles.quickRow}>
+          {reminderPresets.map((p) => {
+            const sel = value.reminderTime === p.key;
+            return (
+              <Pressable key={p.label} testID={`form-remtime-${p.key ?? "default"}`} onPress={() => set({ reminderTime: p.key })} style={[styles.quick, sel && styles.quickSel]}>
+                <Text style={[styles.quickText, sel && styles.quickTextSel]}>{p.label}</Text>
+              </Pressable>
+            );
+          })}
+          {Platform.OS !== "web" ? (
+            <Pressable testID="form-remtime-custom" onPress={() => setShowTimePicker(true)} style={[styles.quick, value.reminderTime && !reminderPresets.some((p) => p.key === value.reminderTime) && styles.quickSel]}>
+              <Text style={[styles.quickText, value.reminderTime && !reminderPresets.some((p) => p.key === value.reminderTime) && styles.quickTextSel]}>
+                {value.reminderTime && !reminderPresets.some((p) => p.key === value.reminderTime) ? reminderTimeLabel(value.reminderTime) : "Custom…"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <Text style={styles.webPickerNote}>{value.reminderTime ? `Reminders for this item nudge you at ${reminderTimeLabel(value.reminderTime)}.` : "Uses your default reminder timing."}</Text>
+        {showTimePicker && Platform.OS !== "web" ? (
+          <DateTimePicker
+            testID="form-remtime-picker"
+            value={value.reminderTime ? dayjs().hour(parseInt(value.reminderTime.split(":")[0], 10)).minute(parseInt(value.reminderTime.split(":")[1], 10)).toDate() : dayjs().hour(9).minute(0).toDate()}
+            mode="time"
+            onChange={onTimePicked}
+            accentColor={colors.brandPrimary}
+          />
+        ) : null}
       </View>
       {source ? (
         <View style={{ gap: 6 }}>

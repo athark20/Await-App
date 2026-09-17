@@ -20,7 +20,7 @@ import { CALENDAR_REASON, openGoogleCalendar, removeFromDeviceCalendar, syncToDe
 import { Linking, Platform } from "react-native";
 import { ErrorRetry } from "@/src/components/common";
 
-type SheetKind = null | "remind" | "done" | "delete" | "reopen" | "addEvidence" | "editNotes" | "editAmount" | "menu";
+type SheetKind = null | "remind" | "done" | "delete" | "reopen" | "addEvidence" | "editNotes" | "editAmount" | "remtime" | "menu";
 
 const EVIDENCE_ICON: Record<string, string> = { SCREENSHOT: "image-outline", IMAGE: "image-outline", DOCUMENT: "document-text-outline", URL: "link-outline", VOICE: "mic-outline" };
 
@@ -89,7 +89,27 @@ export default function ItemDetails() {
   };
   const markDone = () => action.mutate({ path: "/state", json: { state: "DONE" } }, { onSuccess: ok("Marked as Done") });
   const reopen = (s: "MY_TURN" | "THEIR_TURN") => action.mutate({ path: "/reopen", json: { state: s } }, { onSuccess: ok("Reopened") });
-  const snooze = (p: SnoozePick) => action.mutate({ path: "/snooze", json: { until: p.until, days: p.days } }, { onSuccess: ok(`Reminder set · ${dayjs(p.until).format("ddd, D MMM")}`) });
+  const snooze = (p: SnoozePick) => {
+    const prev = { nextReminderAt: item.nextReminderAt, ignoredReminderCount: item.ignoredReminderCount };
+    action.mutate(
+      { path: "/snooze", json: { until: p.until, days: p.days } },
+      {
+        onSuccess: () => {
+          setSheet(null);
+          toast.show(`Reminder set · ${dayjs(p.until).format("ddd, D MMM")}`, "success", {
+            action: {
+              label: "Undo",
+              onPress: () =>
+                action.mutate(
+                  { path: "/reminder-restore", json: { nextReminderAt: prev.nextReminderAt, ignoredReminderCount: prev.ignoredReminderCount } },
+                  { onSuccess: () => toast.show("Snooze undone", "info") },
+                ),
+            },
+          });
+        },
+      },
+    );
+  };
   const resolve = (a: "close" | "still_waiting" | "remind_later", days?: number) =>
     action.mutate({ path: "/resolution", json: { action: a, days } }, { onSuccess: ok(a === "close" ? "Marked as Done" : a === "still_waiting" ? "Kept open — reminders resumed" : "Reminder scheduled") });
   const del = async () => {
@@ -124,6 +144,12 @@ export default function ItemDetails() {
     setSheet(null);
     invalidate(id);
   };
+  const saveReminderTime = async (hhmm: string) => {
+    await api(`/awaits/${id}`, { method: "PATCH", json: { reminderTime: hhmm } });
+    setSheet(null);
+    invalidate(id);
+    toast.show(hhmm ? `Reminders at ${dayjs(`2000-01-01T${hhmm}`).format("h:mm A")}` : "Using default reminder timing", "success");
+  };
   const addToCalendar = async () => {
     setSheet(null);
     if (Platform.OS === "web") return openGoogleCalendar(item);
@@ -141,6 +167,7 @@ export default function ItemDetails() {
     else if (k === "gcal") { setSheet(null); openGoogleCalendar(item); }
     else if (k === "notes") { setNotes(item.notes ?? ""); setSheet("editNotes"); }
     else if (k === "amount") { setAmount(item.amount ? String(item.amount) : ""); setSheet("editAmount"); }
+    else if (k === "remtime") setSheet("remtime");
     else if (k === "recurring") { setSheet(null); router.push({ pathname: "/template-edit", params: { who: item.ownerName, what: item.commitment, category: item.category, amount: item.amount ? String(item.amount) : "", currency: item.currency ?? "INR", state: item.state === "MY_TURN" ? "MY_TURN" : "THEIR_TURN", notes: item.notes ?? "" } }); }
     else if (k === "evidence") setSheet("addEvidence");
     else if (k === "delete") setSheet("delete");
@@ -361,6 +388,7 @@ export default function ItemDetails() {
         options={[
           { key: "notes", label: "Edit notes", icon: "create-outline" },
           { key: "amount", label: item.amount ? "Edit amount" : "Add amount", subtitle: "Money involved, counts toward totals owed", icon: "cash-outline" },
+          ...(!isDone ? [{ key: "remtime", label: "Reminder time", subtitle: item.reminderTime ? `Nudges at ${dayjs(`2000-01-01T${item.reminderTime}`).format("h:mm A")}` : "Choose when this item nudges you", icon: "alarm-outline" }] : []),
           { key: "evidence", label: "Add evidence", icon: "attach-outline" },
           { key: "recurring", label: "Make it recurring", subtitle: "Recreate this Await weekly, monthly or yearly", icon: "repeat-outline" },
           ...(item.expectedAt ? [
@@ -370,6 +398,22 @@ export default function ItemDetails() {
           { key: "delete", label: "Delete Await", subtitle: "Removes notes and evidence too", icon: "trash-outline" },
         ]}
         onSelect={openMenu}
+      />
+      <Sheet
+        visible={sheet === "remtime"}
+        onClose={() => setSheet(null)}
+        icon="alarm-outline"
+        title="Reminder time"
+        subtitle={`When should reminders for this Await nudge you?${item.reminderTime ? ` Currently ${dayjs(`2000-01-01T${item.reminderTime}`).format("h:mm A")}.` : ""}`}
+        testID="remtime-sheet"
+        options={[
+          { key: "", label: "Default", subtitle: "Use my usual reminder timing", icon: "time-outline" },
+          { key: "09:00", label: "9:00 AM", icon: "sunny-outline" },
+          { key: "12:00", label: "12:00 PM", icon: "partly-sunny-outline" },
+          { key: "18:00", label: "6:00 PM", icon: "moon-outline" },
+          { key: "21:00", label: "9:00 PM", icon: "moon-outline" },
+        ]}
+        onSelect={(k) => saveReminderTime(k)}
       />
       <Sheet visible={sheet === "done"} onClose={() => setSheet(null)} icon="checkmark-circle-outline" tone="success" title="Mark as Done" subtitle="Move this item to completed." primary={{ title: "Mark as Done", variant: "success", onPress: markDone, loading: action.isPending }} secondary={{ title: "Cancel", onPress: () => setSheet(null) }} testID="done-sheet" />
       <Sheet visible={sheet === "delete"} onClose={() => setSheet(null)} icon="trash-outline" tone="error" title="Delete this Await?" subtitle={"This removes the Await, its notes, and its saved evidence.\nThis action cannot be undone."} primary={{ title: "Delete Await", variant: "danger", onPress: del }} secondary={{ title: "Cancel", onPress: () => setSheet(null) }} testID="delete-sheet" />
@@ -433,7 +477,7 @@ function GridBtn({ icon, label, onPress, primary, testID }: { icon: string; labe
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.lg, gap: 12, paddingTop: 4 },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   card: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, gap: 12 },

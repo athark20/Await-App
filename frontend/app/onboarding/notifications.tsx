@@ -66,7 +66,7 @@ export default function NotificationEducation() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { flex: 1, paddingHorizontal: spacing.xl, gap: 12, paddingTop: 12 },
   title: { fontSize: 24, fontWeight: "800", color: c.onSurface, textAlign: "center", marginTop: 8 },
   subtitle: { fontSize: 14.5, color: c.muted, textAlign: "center", marginBottom: 12, lineHeight: 20 },

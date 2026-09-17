@@ -153,7 +153,7 @@ export default function TemplateEdit() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.lg, gap: 16, paddingTop: 4 },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   label: { fontSize: 13, fontWeight: "600", color: c.onSurfaceSecondary },

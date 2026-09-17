@@ -101,7 +101,7 @@ function Option({ icon, title, subtitle, onPress, testID }: { icon: string; titl
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl },
   title: { fontSize: 22, fontWeight: "800", color: c.onSurface, marginTop: 6 },
   sub: { fontSize: 14, color: c.muted },

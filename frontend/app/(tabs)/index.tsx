@@ -199,11 +199,27 @@ function OverdueItem({ item }: { item: AwaitItem }) {
   const action = useAwaitAction(item.id);
   const [sheet, setSheet] = useState(false);
 
-  const snooze = (until: string, days: number, label: string) =>
+  const snooze = (until: string, days: number, label: string) => {
+    const prev = { nextReminderAt: item.nextReminderAt, ignoredReminderCount: item.ignoredReminderCount };
     action.mutate(
       { path: "/snooze", json: { until, days } },
-      { onSuccess: () => { setSheet(false); toast.show(`Reminder set · ${label}`, "success"); } },
+      {
+        onSuccess: () => {
+          setSheet(false);
+          toast.show(`Reminder set · ${label}`, "success", {
+            action: {
+              label: "Undo",
+              onPress: () =>
+                action.mutate(
+                  { path: "/reminder-restore", json: { nextReminderAt: prev.nextReminderAt, ignoredReminderCount: prev.ignoredReminderCount } },
+                  { onSuccess: () => toast.show("Snooze undone", "info") },
+                ),
+            },
+          });
+        },
+      },
     );
+  };
   const quick = (days: number) => {
     const at = dayjs().add(days, "day").hour(9).minute(0).second(0);
     snooze(at.toISOString(), days, at.format("ddd, D MMM"));
@@ -242,7 +258,7 @@ function QuickChip({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   strip: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 4 },
   stat: { flex: 1, backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border, borderRadius: 14, paddingVertical: 10, alignItems: "center", gap: 2 },
   statValue: { fontSize: 18, fontWeight: "800", color: c.onSurface },
@@ -251,7 +267,7 @@ const useStyles = makeStyles((c) => ({
   recapIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.warningTint, alignItems: "center", justifyContent: "center" },
   recapTitle: { fontSize: 14.5, fontWeight: "700", color: c.onSurface },
   recapSub: { fontSize: 12.5, color: c.muted, marginTop: 2 },
-  header: { backgroundColor: c.surface, paddingBottom: 4 },
+  header: { backgroundColor: "transparent", paddingBottom: 4 },
   headerRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, marginBottom: 4 },
   greeting: { fontSize: 22, fontWeight: "800", color: c.onSurface },
   sub: { fontSize: 14, color: c.muted, marginTop: 2 },

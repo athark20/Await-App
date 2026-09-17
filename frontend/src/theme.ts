@@ -2,7 +2,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { Appearance, StyleSheet, useColorScheme } from "react-native";
 
-export type ColorScheme = "light" | "dark";
+export type ColorScheme = "light" | "dim" | "dark";
 
 const light = {
   surface: "#F7F9FC",
@@ -55,6 +55,9 @@ const light = {
   google: "#FFFFFF",
   onGoogle: "#1F1F1F",
   googleBorder: "#747775",
+
+  // App backdrop gradient (top → mid → bottom). Applied app-wide behind every screen.
+  bgGradient: ["#FBFCFE", "#EEF3FA", "#E3ECF7"] as readonly string[],
 };
 
 const dark: typeof light = {
@@ -106,11 +109,39 @@ const dark: typeof light = {
   google: "#FFFFFF",
   onGoogle: "#1F1F1F",
   googleBorder: "#747775",
+  bgGradient: ["#0C1626", "#081120", "#04090F"] as readonly string[],
+};
+
+// Evening / "dim" — a softer, warmer dark for the transition between day and night.
+const dim: typeof light = {
+  ...dark,
+  surface: "#141D30",
+  onSurface: "#EDF2FA",
+  surfaceSecondary: "#1C2740",
+  onSurfaceSecondary: "#EDF2FA",
+  surfaceTertiary: "#243350",
+  onSurfaceTertiary: "#A6B6D4",
+  surfaceInverse: "#EDF2FA",
+  onSurfaceInverse: "#141D30",
+  muted: "#A2B3D2",
+  brandTertiary: "#17335A",
+  onBrandTertiary: "#7CC0FF",
+  successTint: "#123326",
+  warningTint: "#39301A",
+  errorTint: "#3E2026",
+  purple: "#9D86FF",
+  purpleTint: "#2A2350",
+  border: "#2C3E5C",
+  borderStrong: "#3A5176",
+  divider: "#22324C",
+  overlay: "rgba(4,10,20,0.55)",
+  tabInactive: "#7C90B2",
+  bgGradient: ["#2A3652", "#1C2740", "#141D30"] as readonly string[],
 };
 
 export type ThemeColors = typeof light;
 export const defaultScheme = "light" satisfies ColorScheme;
-export const themes: { light: ThemeColors; dark: ThemeColors } = { light, dark };
+export const themes: { light: ThemeColors; dim: ThemeColors; dark: ThemeColors } = { light, dim, dark };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 } as const;
 export const radius = { sm: 10, md: 14, lg: 18, pill: 999 } as const;
@@ -120,7 +151,8 @@ const listeners = new Set<() => void>();
 
 export function setColorScheme(scheme: ColorScheme | null) {
   override = scheme;
-  Appearance.setColorScheme?.(scheme ?? "unspecified");
+  // Native Appearance only understands light/dark — map "dim" onto dark for OS-level chrome.
+  Appearance.setColorScheme?.(scheme === "dim" ? "dark" : (scheme ?? "unspecified"));
   listeners.forEach((l) => l());
 }
 

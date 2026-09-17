@@ -119,8 +119,8 @@ export default function Search() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
-  header: { backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
+  header: { backgroundColor: "transparent" },
   title: { fontSize: 22, fontWeight: "800", color: c.onSurface, paddingHorizontal: spacing.xl, marginBottom: 10 },
   searchBox: { marginHorizontal: spacing.xl, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceSecondary, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
   input: { flex: 1, fontSize: 15, color: c.onSurface, height: 48 },

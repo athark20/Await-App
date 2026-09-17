@@ -92,7 +92,7 @@ export default function Screenshot() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { flex: 1, paddingHorizontal: spacing.xl, gap: 10 },
   preview: { width: "100%", flex: 1, borderRadius: radius.lg, backgroundColor: c.surfaceTertiary, borderWidth: 1, borderColor: c.border },
   title: { fontSize: 22, fontWeight: "800", color: c.onSurface, textAlign: "center", marginTop: 8 },

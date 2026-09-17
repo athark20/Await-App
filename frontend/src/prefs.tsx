@@ -1,8 +1,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { setColorScheme } from "@/src/theme";
+import { AppState } from "react-native";
+import { setColorScheme, type ColorScheme } from "@/src/theme";
 import { storage } from "@/src/utils/storage";
 
-export type Appearance = "system" | "light" | "dark";
+export type Appearance = "system" | "light" | "dark" | "timeofday";
+
+/** Time-of-day → theme: bright by day, dimmed at dusk, dark at night. */
+export function schemeForHour(h: number): ColorScheme {
+  if (h >= 7 && h < 17) return "light";
+  if (h >= 17 && h < 20) return "dim";
+  return "dark";
+}
+
+function applyAppearance(a: Appearance) {
+  if (a === "system") setColorScheme(null);
+  else if (a === "timeofday") setColorScheme(schemeForHour(new Date().getHours()));
+  else setColorScheme(a);
+}
 
 interface Prefs {
   appearance: Appearance;
@@ -58,16 +72,27 @@ export function PrefsProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
       setPrefs(p);
-      setColorScheme(p.appearance === "system" ? null : p.appearance);
+      applyAppearance(p.appearance);
       setReady(true);
     })();
   }, []);
+
+  // Time-of-day theme: re-evaluate on an interval and whenever the app returns to foreground.
+  useEffect(() => {
+    if (prefs.appearance !== "timeofday") return;
+    applyAppearance("timeofday");
+    const timer = setInterval(() => applyAppearance("timeofday"), 60_000);
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") applyAppearance("timeofday");
+    });
+    return () => { clearInterval(timer); sub.remove(); };
+  }, [prefs.appearance]);
 
   const update = useCallback((patch: Partial<Prefs>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...patch };
       storage.setItem(KEY, JSON.stringify(next));
-      if (patch.appearance) setColorScheme(patch.appearance === "system" ? null : patch.appearance);
+      if (patch.appearance) applyAppearance(patch.appearance);
       return next;
     });
   }, []);

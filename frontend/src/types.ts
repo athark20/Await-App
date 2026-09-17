@@ -32,6 +32,8 @@ export interface AwaitItem {
   amount?: number | null;
   currency?: string | null;
   calendarEventId?: string | null;
+  /** Preferred nudge time "HH:mm" for this item's reminders. */
+  reminderTime?: string | null;
   /** Set on items created/edited offline and not yet synced. */
   pending?: boolean;
 }

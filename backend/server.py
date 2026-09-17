@@ -95,6 +95,18 @@ def decode_upload(b64: str) -> bytes:
         raise HTTPException(400, detail={"code": "BAD_UPLOAD", "message": "Couldn't read that file."})
 
 
+def with_time(dt, hhmm: Optional[str]):
+    """Apply a preferred 'HH:mm' nudge time to a datetime (keeps date, sets clock)."""
+    if not dt or not hhmm:
+        return dt
+    try:
+        h, m = (int(x) for x in hhmm.split(":")[:2])
+        return dt.replace(hour=h, minute=m, second=0, microsecond=0)
+    except Exception:
+        return dt
+
+
+
 def check_zip_expansion(data: bytes):
     import zipfile
     try:
@@ -326,6 +338,7 @@ class AwaitIn(BaseModel):
     amount: Optional[float] = None
     currency: str = "INR"
     reminderLeadDays: int = 0  # remind this many days BEFORE the expected date (tighter reminders for late owners)
+    reminderTime: Optional[str] = None  # preferred nudge time "HH:mm" for this item's reminders
 
 
 class AwaitPatch(BaseModel):
@@ -338,6 +351,12 @@ class AwaitPatch(BaseModel):
     notes: Optional[str] = None
     amount: Optional[float] = None
     currency: Optional[str] = None
+    reminderTime: Optional[str] = None  # preferred nudge time "HH:mm"
+
+
+class ReminderRestoreIn(BaseModel):
+    nextReminderAt: Optional[str] = None
+    ignoredReminderCount: int = 0
 
 
 class StateIn(BaseModel):
@@ -522,8 +541,9 @@ async def create_await(body: AwaitIn, user=Depends(get_user)):
         "attentionState": "NORMAL", "category": body.category if body.category in CATEGORIES else "OTHER", "notes": body.notes or "",
         "sourceType": body.sourceType if body.sourceType in SOURCE_TYPES else "MANUAL", "sourceAppLabel": body.sourceAppLabel,
         "sourceEvidenceIds": [], "createdAt": now(), "updatedAt": now(), "completedAt": None, "lastReminderAt": None,
-        "nextReminderAt": (exp - timedelta(days=body.reminderLeadDays)) if exp and body.reminderLeadDays > 0 else exp, "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
+        "nextReminderAt": with_time((exp - timedelta(days=body.reminderLeadDays)) if exp and body.reminderLeadDays > 0 else exp, body.reminderTime), "reminderCount": 0, "ignoredReminderCount": 0, "lastFollowupAt": None, "nextCheckAt": None,
         "resolutionConfidence": None, "resolutionEvidenceId": None, "deleted_at": None,
+        "reminderTime": body.reminderTime,
         "amount": (body.amount if body.amount and body.amount > 0 else None), "currency": (body.currency or "INR").upper()[:3],
     }
     await db.awaits.insert_one(doc)
@@ -556,6 +576,12 @@ async def patch_await(await_id: str, body: AwaitPatch, user=Depends(get_user)):
         if (old and old.date()) != (new_exp and new_exp.date()):
             await add_event(await_id, user["user_id"], "EXPECTED_CHANGED", f"Expected date changed to {new_exp.strftime('%d %b %Y') if new_exp else 'unset'}",
                             {"from": iso(old), "to": iso(new_exp)})
+    if "reminderTime" in upd or "expectedAt" in upd:
+        rt = upd.get("reminderTime", a.get("reminderTime")) or None
+        upd["reminderTime"] = rt
+        base = upd.get("nextReminderAt", a.get("nextReminderAt"))
+        if base is not None:
+            upd["nextReminderAt"] = with_time(base, rt)
     upd["updatedAt"] = now()
     upd["title"] = f"{upd.get('ownerName', a['ownerName'])} — {upd.get('commitment', a['commitment'])}"
     await db.awaits.update_one({"id": await_id}, {"$set": upd})
@@ -599,6 +625,16 @@ async def snooze(await_id: str, body: SnoozeIn, user=Depends(get_user)):
     until = parse_dt(body.until) or (now() + timedelta(days=body.days or 1))
     await db.awaits.update_one({"id": await_id}, {"$set": {"nextReminderAt": until, "attentionState": "NORMAL", "ignoredReminderCount": 0, "updatedAt": now()}})
     await add_event(await_id, user["user_id"], "REMINDER_SCHEDULED", f"Reminder set for {until.strftime('%d %b %Y')}")
+    return out_await(await db.awaits.find_one({"id": await_id}, {"_id": 0}))
+
+
+@api.post("/awaits/{await_id}/reminder-restore")
+async def reminder_restore(await_id: str, body: ReminderRestoreIn, user=Depends(get_user)):
+    """Undo a snooze: put the reminder back where it was."""
+    await get_owned(await_id, user)
+    nr = parse_dt(body.nextReminderAt)
+    await db.awaits.update_one({"id": await_id}, {"$set": {"nextReminderAt": nr, "ignoredReminderCount": max(0, body.ignoredReminderCount), "updatedAt": now()}})
+    await add_event(await_id, user["user_id"], "REMINDER_SCHEDULED", "Snooze undone — reminder restored")
     return out_await(await db.awaits.find_one({"id": await_id}, {"_id": 0}))
 
 

@@ -139,7 +139,7 @@ function ItemRow({ item, right, last }: { item: RecapItem; right: React.ReactNod
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   shareCta: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.brandTertiary, borderRadius: radius.md, paddingHorizontal: 12, height: 40 },
   shareCtaText: { flex: 1, fontSize: 13, fontWeight: "700", color: c.brandPrimary },

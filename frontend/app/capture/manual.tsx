@@ -75,7 +75,7 @@ export default function Manual() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 16 },
   sub: { color: c.muted, fontSize: 14 },
 }));

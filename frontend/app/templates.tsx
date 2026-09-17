@@ -117,7 +117,7 @@ export default function Templates() {
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.lg, gap: 10, paddingTop: 4 },
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   intro: { fontSize: 13.5, color: c.muted, lineHeight: 19, marginBottom: 4 },

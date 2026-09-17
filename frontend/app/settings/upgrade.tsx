@@ -148,7 +148,7 @@ function PlanCard({ selected, onPress, title, price, period, badge, testID }: { 
 }
 
 const useStyles = makeStyles((c) => ({
-  root: { flex: 1, backgroundColor: c.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: spacing.xl, gap: 14 },
   crown: { width: 64, height: 64, borderRadius: 20, backgroundColor: c.warningTint, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 26, fontWeight: "800", color: c.onSurface },
