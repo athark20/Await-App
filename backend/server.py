@@ -359,6 +359,22 @@ class ReminderRestoreIn(BaseModel):
     ignoredReminderCount: int = 0
 
 
+class BulkSnoozeIn(BaseModel):
+    ids: List[str]
+    days: Optional[int] = None
+    until: Optional[str] = None
+
+
+class BulkRestoreItem(BaseModel):
+    id: str
+    nextReminderAt: Optional[str] = None
+    ignoredReminderCount: int = 0
+
+
+class BulkRestoreIn(BaseModel):
+    items: List[BulkRestoreItem]
+
+
 class StateIn(BaseModel):
     state: str
 
@@ -636,6 +652,33 @@ async def reminder_restore(await_id: str, body: ReminderRestoreIn, user=Depends(
     await db.awaits.update_one({"id": await_id}, {"$set": {"nextReminderAt": nr, "ignoredReminderCount": max(0, body.ignoredReminderCount), "updatedAt": now()}})
     await add_event(await_id, user["user_id"], "REMINDER_SCHEDULED", "Snooze undone — reminder restored")
     return out_await(await db.awaits.find_one({"id": await_id}, {"_id": 0}))
+
+
+@api.post("/awaits/bulk-snooze")
+async def bulk_snooze(body: BulkSnoozeIn, user=Depends(get_user)):
+    """Reschedule many Awaits at once (e.g. all overdue items from Home)."""
+    until = parse_dt(body.until) or (now() + timedelta(days=body.days or 1))
+    owned = await db.awaits.find({"id": {"$in": body.ids}, "user_id": user["user_id"], "deleted_at": None}, {"_id": 0, "id": 1}).to_list(500)
+    ids = [d["id"] for d in owned]
+    if ids:
+        await db.awaits.update_many({"id": {"$in": ids}}, {"$set": {"nextReminderAt": until, "attentionState": "NORMAL", "ignoredReminderCount": 0, "updatedAt": now()}})
+        for i in ids:
+            await add_event(i, user["user_id"], "REMINDER_SCHEDULED", f"Reminder set for {until.strftime('%d %b %Y')} (bulk)")
+    return {"count": len(ids), "until": iso(until)}
+
+
+@api.post("/awaits/bulk-reminder-restore")
+async def bulk_reminder_restore(body: BulkRestoreIn, user=Depends(get_user)):
+    """Undo a bulk snooze: restore each item's previous reminder."""
+    owned = await db.awaits.find({"id": {"$in": [it.id for it in body.items]}, "user_id": user["user_id"]}, {"_id": 0, "id": 1}).to_list(500)
+    owned_ids = {d["id"] for d in owned}
+    n = 0
+    for it in body.items:
+        if it.id not in owned_ids:
+            continue
+        await db.awaits.update_one({"id": it.id}, {"$set": {"nextReminderAt": parse_dt(it.nextReminderAt), "ignoredReminderCount": max(0, it.ignoredReminderCount), "updatedAt": now()}})
+        n += 1
+    return {"count": n}
 
 
 @api.post("/awaits/{await_id}/followup-sent")

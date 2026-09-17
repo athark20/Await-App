@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 13 (Time-of-day Sky Wallpapers + Theme Schedule + Bulk Snooze) — ALL BACKEND + ALL FRONTEND FLOWS PASS. Backend: 8/8 new iteration_13 tests green (bulk-snooze, bulk-reminder-restore, owner-scoping for BOTH endpoints, empty payloads, auth guards); full regression 93/93 pytest cases across all iterations (test_await_backend + iteration3-9 + iteration12 + iteration13) green in a single run. Verified: (a) POST /api/awaits/bulk-snooze with {ids:[3 items], days:3} returns {count:3, until:<iso>} and shifts each item's nextReminderAt to ~now+3d (±120s), resets attentionState=NORMAL and ignoredReminderCount=0; (b) Owner-scoping — Alex posting {ids:[alex_id, bob_id]} yields count=1 and Bob's item is completely untouched (nextReminderAt unchanged); (c) POST /api/awaits/bulk-reminder-restore with items=[{id,nextReminderAt,ignoredReminderCount},...] restores nextReminderAt exactly (parse-equal) and returns {count:N}; (d) Owner-scoping — Alex trying to restore Bob's item returns count=0 and Bob's nextReminderAt is unchanged; (e) Both endpoints reject unauthenticated calls with 401/403; (f) Empty {ids:[]} / {items:[]} return count=0 without error. Frontend (Expo web preview, 390x844): (1) Bulk Snooze — Home Overdue section header shows 'Snooze all' (testID section-action-overdue) because Alex has 3 overdue; tapping opens bulk-snooze-sheet; selecting 'In a week' calls POST /awaits/bulk-snooze → 200 and shows toast '3 reminders set · Thu, 24 Sep' with visible testID=toast-action 'Undo' button. Tapping Undo calls POST /awaits/bulk-reminder-restore → 200 and shows 'Snooze undone' toast. (2) Time-of-day wallpaper — selecting appearance-timeofday renders a photographic sky wallpaper Image (704x1504 asset) covering the screen under the scrim; no red-box / no crash; verified via DOM: an <img> element with the wallpaper source is present in the AppBackground layer. (3) Light & Dark also render wallpaper without crashing (afternoon.jpg / night.jpg loaded, natural size 704x1504 each). (4) Theme schedule editor — with Auto selected, all 4 rows appear: schedule-morning=6 AM, schedule-afternoon=12 PM, schedule-dusk=5 PM, schedule-night=8 PM (matches DEFAULTS in prefs.tsx). Tapping schedule-dusk opens schedule-sheet with the 5 hour options (3 PM / 4 PM / 5 PM Current / 6 PM / 7 PM); selecting '6 PM' updates the row value to '6 PM' and persists. State reset at end (dusk back to 5 PM, appearance back to System) so Alex's account remains at defaults for the next iteration.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration13.py",
+    "/app/test_reports/pytest/iteration13.xml",
+    "/app/test_reports/pytest/iteration13_full.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:657-667 bulk_snooze — filters {id:{$in:ids}, user_id, deleted_at:null} BEFORE update_many, then returns count of owned ids only. Owner-scoping is correctly enforced at the query level (not application-level), which is the safe pattern. Verified via test_bulk_snooze_owner_scoping (Alex sending Bob's id returns count=1 and Bob's data intact).",
+    "server.py:670-681 bulk_reminder_restore — same pattern: pre-fetches owned ids first, then only updates those. Silently skips non-owned rows (does not 403 the whole request), which is intentional for a mobile 'undo' path where the server list could have drifted. Owner-scoping verified via test_bulk_restore_owner_scoped.",
+    "server.py:661 to_list(500) — hard cap of 500 items per bulk call. Non-blocking for the current UX (max 10 overdue on FREE tier), but consider documenting or paginating if a paid tier ever unlocks larger overdue lists. NON-BLOCKING.",
+    "app/(tabs)/index.tsx:77-99 bulkSnooze — captures `prev = [{id, nextReminderAt, ignoredReminderCount}]` for ALL overdue items BEFORE the mutation, closes over it in the Undo handler, and passes the exact original values to /bulk-reminder-restore. Correct memoisation (would survive react-query refetch). Verified end-to-end.",
+    "app/(tabs)/index.tsx:193 — 'Snooze all' only renders when groups.overdue.length > 1, which is the correct UX guard (no bulk button for a single item — user should use per-card chips). Alex has 3, so it shows.",
+    "components/AppBackground.tsx:33-40 — <View pointerEvents='none'> wraps both the <Image> and the <LinearGradient> scrim so touches always pass through to the app content. Good. `key={p}` on the Image forces a re-mount on phase change so the correct wallpaper is loaded even if the app switches modes rapidly. Good.",
+    "components/AppBackground.tsx:30 — for 'system' appearance the fallback is 'night' when scheme==='dark' else 'afternoon'. Sensible.",
+    "prefs.tsx:73-79 resolve() — 'light' -> phase=afternoon, 'dark' -> phase=night. This means Light/Dark modes ALSO render the sky wallpaper (verified in browser). Product-intended per the review request.",
+    "prefs.tsx:100 JSON.parse(raw) is called twice on the same string during rehydration (once in the spread, once in schedule merge). Minor perf/robustness — a single parse into a var would be cleaner. NON-BLOCKING.",
+    "app/settings/preferences.tsx:12-17 PHASE_META — dusk hours cap at 19 (7 PM) and night starts as early as 18 (6 PM). These ranges overlap intentionally so users can compress the dusk window if desired, but there is NO client-side validation that morning<afternoon<dusk<night. If a user sets dusk=18 while night=19, phaseForHour(h) still returns coherent phases (dusk 18-18=empty, night 19+) but the wallpaper never shows 'dusk' for any hour. Consider a soft warning or auto-nudge. NON-BLOCKING.",
+    "app/settings/preferences.tsx:99 options label — uses `subtitle: prefs.schedule[meta!.key] === h ? 'Current' : undefined` — clean way to show the currently-selected hour in the sheet. Verified in DOM ('5 PM Current')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% — 8/8 iteration_13 + 85/85 existing regression = 93/93 pytest cases green in a single run",
+    "frontend": "100% — 5/5 review flows verified (bulk-snooze POST+toast+Undo, bulk-reminder-restore POST+toast, timeofday wallpaper Image render, Light/Dark wallpaper render, theme schedule editor open + hour pick + persist)"
+  },
+  "seed_data_creation": "Backend tests create+delete their own TEST_-prefixed awaits per-test (no residue). One transient module-scoped 'test_bob_*@example.com' user is registered for owner-scoping tests — not cleaned up (registration only, no rate-limit side effects). Frontend flow on alex@example.com: bulk-snoozed all 3 overdue then Undo'd — net-zero (state fully restored to pre-test). Preferences were briefly set to Auto + dusk=6 PM during testing but explicitly reset at end (dusk → 5 PM, appearance → System).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 3 new features are green end-to-end. Key testIDs added: section-action-overdue (Snooze all button on Overdue section header), bulk-snooze-sheet, toast-action (Undo), appearance-timeofday, schedule-morning/afternoon/dusk/night, schedule-sheet. Wallpapers are static Images at /app/frontend/assets/wallpapers/{morning,afternoon,dusk,night}.jpg (704x1504). AppBackground uses pointerEvents='none' correctly so touches pass through. Backend has hard cap of 500 items per bulk endpoint (to_list(500)) — fine for current UX. Owner-scoping is enforced at query level in BOTH bulk endpoints. Rate-limit note (unchanged from iter_12): running the full test suite hammers the login rate-limit in in-memory buckets — a `sudo supervisorctl restart backend && sleep 8` before UI testing resolves any 429 leftovers. During this run, one 429 wave forced a backend restart before UI login could complete; after restart every subsequent UI flow passed on first attempt.",
+  "rca_of_issue": "N/A — no bugs found. All acceptance criteria pass."
+}

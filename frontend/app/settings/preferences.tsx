@@ -1,14 +1,28 @@
-import React from "react";
+import React, { useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import dayjs from "dayjs";
 import { makeStyles, spacing } from "@/src/theme";
 import { Group, ListRow, ScreenHeader, Chips } from "@/src/components/ui";
-import { usePrefs, type Appearance } from "@/src/prefs";
+import { Sheet } from "@/src/components/Sheet";
+import { usePrefs, type Appearance, type Schedule } from "@/src/prefs";
+
+const fmtHour = (h: number) => dayjs().hour(h).minute(0).format("h A");
+
+const PHASE_META: { key: keyof Schedule; label: string; icon: string; hours: number[] }[] = [
+  { key: "morning", label: "Morning starts", icon: "partly-sunny-outline", hours: [4, 5, 6, 7, 8] },
+  { key: "afternoon", label: "Afternoon starts", icon: "sunny-outline", hours: [10, 11, 12, 13, 14] },
+  { key: "dusk", label: "Dusk starts", icon: "cloudy-night-outline", hours: [15, 16, 17, 18, 19] },
+  { key: "night", label: "Night starts", icon: "moon-outline", hours: [18, 19, 20, 21, 22, 23] },
+];
 
 export default function Preferences() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { prefs, update } = usePrefs();
+  const [editPhase, setEditPhase] = useState<keyof Schedule | null>(null);
+  const meta = PHASE_META.find((m) => m.key === editPhase);
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]} testID="preferences-screen">
       <ScreenHeader title="Preferences" />
@@ -21,13 +35,32 @@ export default function Preferences() {
               testID={`appearance-${a}`}
               icon={a === "system" ? "phone-portrait-outline" : a === "light" ? "sunny-outline" : a === "dark" ? "moon-outline" : "partly-sunny-outline"}
               title={a === "timeofday" ? "Auto · time of day" : a.charAt(0).toUpperCase() + a.slice(1)}
-              subtitle={a === "system" ? "Follow device setting" : a === "timeofday" ? "Light by day, dim at dusk, dark at night" : undefined}
+              subtitle={a === "system" ? "Follow device setting" : a === "timeofday" ? "Sky wallpaper + theme shift through the day" : undefined}
               value={prefs.appearance === a ? "✓" : undefined}
               onPress={() => update({ appearance: a })}
               last={i === arr.length - 1}
             />
           ))}
         </Group>
+        {prefs.appearance === "timeofday" ? (
+          <>
+            <Text style={styles.section}>Theme schedule</Text>
+            <Group>
+              {PHASE_META.map((m, i) => (
+                <ListRow
+                  key={m.key}
+                  testID={`schedule-${m.key}`}
+                  icon={m.icon}
+                  title={m.label}
+                  value={fmtHour(prefs.schedule[m.key])}
+                  onPress={() => setEditPhase(m.key)}
+                  last={i === PHASE_META.length - 1}
+                />
+              ))}
+            </Group>
+            <Text style={styles.note}>Morning & afternoon show bright sky · dusk dims to a sunset · night goes dark & starry.</Text>
+          </>
+        ) : null}
         <Text style={styles.section}>Calendar</Text>
         <Group>
           <ListRow
@@ -56,6 +89,19 @@ export default function Preferences() {
         />
         <Text style={styles.note}>Light, dim and dark share the same layout — only colors change.</Text>
       </ScrollView>
+      <Sheet
+        visible={!!meta}
+        onClose={() => setEditPhase(null)}
+        icon={meta?.icon}
+        title={meta ? meta.label : ""}
+        subtitle="Pick the hour this part of the day begins."
+        testID="schedule-sheet"
+        options={(meta?.hours ?? []).map((h) => ({ key: String(h), label: fmtHour(h), subtitle: prefs.schedule[meta!.key] === h ? "Current" : undefined, icon: "time-outline" }))}
+        onSelect={(k) => {
+          if (meta) update({ schedule: { ...prefs.schedule, [meta.key]: parseInt(k, 10) } });
+          setEditPhase(null);
+        }}
+      />
     </View>
   );
 }

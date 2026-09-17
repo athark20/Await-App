@@ -27,7 +27,9 @@ export default function Home() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { prefs } = usePrefs();
+  const toast = useToast();
   const [filter, setFilter] = useState<Filter>("ALL");
+  const [bulkSheet, setBulkSheet] = useState(false);
   const q = useAwaits({ include_done: "false" });
   const stats = useStats();
   const owed = (stats.data as any)?.owed as number | undefined;
@@ -71,6 +73,30 @@ export default function Home() {
     }
     return { overdue, due, upcoming, review };
   }, [items]);
+
+  const bulkSnooze = (p: SnoozePick) => {
+    const overdue = groups.overdue;
+    const prev = overdue.map((it) => ({ id: it.id, nextReminderAt: it.nextReminderAt, ignoredReminderCount: it.ignoredReminderCount }));
+    const ids = overdue.map((it) => it.id);
+    setBulkSheet(false);
+    api<{ count: number }>("/awaits/bulk-snooze", { method: "POST", json: { ids, until: p.until, days: p.days } })
+      .then((r) => {
+        q.refetch();
+        stats.refetch();
+        toast.show(`${r.count} reminder${r.count === 1 ? "" : "s"} set · ${dayjs(p.until).format("ddd, D MMM")}`, "success", {
+          action: {
+            label: "Undo",
+            onPress: () =>
+              api("/awaits/bulk-reminder-restore", { method: "POST", json: { items: prev } }).then(() => {
+                q.refetch();
+                stats.refetch();
+                toast.show("Snooze undone", "info");
+              }),
+          },
+        });
+      })
+      .catch(() => toast.show("Couldn't reschedule", "error"));
+  };
 
   const todayList = groups.due;
   const showToday = filter !== "UPCOMING";
@@ -164,7 +190,7 @@ export default function Home() {
             ) : null}
             {showOverdueSection ? (
               <>
-                <SectionTitle title="Overdue" count={groups.overdue.length} />
+                <SectionTitle title="Overdue" count={groups.overdue.length} action={groups.overdue.length > 1 ? "Snooze all" : undefined} onAction={() => setBulkSheet(true)} />
                 {groups.overdue.map((it) => <OverdueItem key={`o-${it.id}`} item={it} />)}
               </>
             ) : null}
@@ -177,6 +203,7 @@ export default function Home() {
           </>
         )}
       </ScrollView>
+      <SnoozeSheet visible={bulkSheet} onClose={() => setBulkSheet(false)} item={null} onPick={bulkSnooze} testID="bulk-snooze-sheet" />
     </View>
   );
 }
